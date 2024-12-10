@@ -86,9 +86,9 @@ if not df.empty:
             except Exception as e:
                 st.error(f"Error deleting transaction: {str(e)}")
     
-    # Handle updates only if no deletions were processed
-    if rows_to_delete.empty:
-        for index, row in edited_df.iterrows():
+    # Handle updates for non-deleted rows
+    for index, row in edited_df.iterrows():
+        if not row['delete']:  # Only process updates for rows not marked for deletion
             original_row = df.loc[index]
             for field in ['date', 'type', 'amount']:
                 if row[field] != original_row[field]:
