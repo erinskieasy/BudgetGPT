@@ -141,6 +141,51 @@ class GPTProcessor:
         })
         
         return result
+    def generate_sql_command(self, action, transactions_context):
+        """Generate SQL command for transaction modifications."""
+        prompt = f"""
+        You are a PostgreSQL expert. Generate a safe SQL command for the following action.
+        Current transactions in the database:
+        {transactions_context}
+
+        Requested action:
+        {json.dumps(action, indent=2)}
+
+        Database schema:
+        - Table name: transactions
+        - Columns: id, date (date), type (text), description (text), amount (numeric), created_at (timestamp)
+
+        Rules:
+        1. Generate precise SQL that will affect only the intended transaction
+        2. Use date ranges of ±1 day for date matching to be flexible
+        3. Use ILIKE with wildcards for fuzzy description matching
+        4. For updates, only include fields that are actually being modified
+        5. Return a single SQL command with proper parameter placeholders (%s)
+
+        Return JSON in this format:
+        {{
+            "sql": "SQL command with %s placeholders",
+            "params": ["list", "of", "parameters"],
+            "type": "update|delete|insert"
+        }}
+        """
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a PostgreSQL expert. Generate precise and safe SQL commands."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            response_format={"type": "json_object"}
+        )
+        
+        return json.loads(response.choices[0].message.content)
 
     def find_matching_transaction(self, description, transactions):
         """Find the best matching transaction based on semantic similarity."""

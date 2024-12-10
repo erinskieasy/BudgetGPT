@@ -15,53 +15,22 @@ class TransactionManager:
                 return self.add_transaction(transaction)
             
             elif command in ['delete', 'update']:
-                criteria = command_data.get('criteria', {})
-                if not criteria:
-                    raise ValueError("No criteria provided for modification")
+                # Get transactions context for GPT
+                transactions_df = self.get_transactions_df()
+                transactions_context = transactions_df.to_string() if not transactions_df.empty else "No transactions"
                 
-                # Use today's date if no date is provided
-                date_str = criteria.get('date', datetime.now().strftime('%Y-%m-%d'))
-                if not date_str:
-                    date_str = datetime.now().strftime('%Y-%m-%d')
-                date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                # Let GPT generate the SQL command
+                sql_command = self.gpt.generate_sql_command(command_data, transactions_context)
                 
-                description = criteria.get('description', '')
-                if not description:
-                    raise ValueError("No description provided for finding the transaction")
-                
-                # Get potential matching transactions
-                transactions = self.db.get_transactions_for_matching(date)
-                if not transactions:
-                    raise ValueError("No transactions found in the recent period")
-                
-                # Use GPT to find the best match
-                if not self.gpt:
-                    raise ValueError("GPT processor not initialized")
+                # Execute the SQL command
+                with self.db.conn.cursor() as cur:
+                    cur.execute(sql_command['sql'], tuple(sql_command['params']))
+                    affected = cur.rowcount
+                    self.db.conn.commit()
                     
-                print(f"Searching for transaction matching: {description}")
-                print(f"Available transactions: {transactions}")
-                
-                match = self.gpt.find_matching_transaction(description, transactions)
-                print(f"Match result: {match}")
-                
-                if not match:
-                    raise ValueError(f"No transaction found that matches '{description}'")
-                    
-                if match['confidence'] < 0.3:  # Even lower threshold for better matching
-                    print(f"Low confidence match: {match['confidence']}")
-                    raise ValueError(f"No transaction found that confidently matches '{description}'. Best match had confidence: {match['confidence']}")
-                
-                # Use the matched transaction's exact description
-                try:
-                    if command == 'delete':
-                        return self.db.delete_transaction(date, match['description'])
-                    else:  # update
-                        updates = command_data.get('updates', {})
-                        if 'date' in updates:
-                            updates['date'] = datetime.strptime(updates['date'], '%Y-%m-%d').date()
-                        return self.db.update_transaction(date, match['description'], updates)
-                except ValueError as e:
-                    raise ValueError(str(e))
+                    if affected == 0:
+                        raise ValueError("No matching transaction found. Please be more specific.")
+                    return True
             
             else:
                 raise ValueError(f"Unknown command: {command}")
