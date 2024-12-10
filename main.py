@@ -24,14 +24,14 @@ serve_static_files()
 
 # Inject PWA components
 pwa_code = """
-    <link rel="manifest" href="/static/manifest.json">
+    <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#000000">
-    <link rel="apple-touch-icon" href="/static/generated-icon.png">
-    <link rel="icon" type="image/png" href="/static/generated-icon.png">
+    <link rel="apple-touch-icon" href="/generated-icon.png">
+    <link rel="icon" type="image/png" href="/generated-icon.png">
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/static/sw.js')
+                navigator.serviceWorker.register('/sw.js')
                     .then(function(registration) {
                         console.log('ServiceWorker registration successful');
                     }, function(err) {
