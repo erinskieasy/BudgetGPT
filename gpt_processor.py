@@ -73,9 +73,12 @@ class GPTProcessor:
             for t in transactions
         )
         
+        print(f"Processing transactions list:\n{transactions_list}")
+        
         prompt = f"""
         You are a semantic matching expert. Given a user's description of a transaction,
         find the most semantically similar transaction from the available list.
+        Be lenient with matching - focus on core concepts rather than exact wording.
 
         User's description: "{description}"
 
@@ -83,13 +86,17 @@ class GPTProcessor:
         {transactions_list}
 
         Consider these matching rules:
-        1. Focus on semantic meaning, not exact text matching
-        2. "gas purchase", "bought gas", "filled up gas tank", "gas station" are semantically similar
-        3. Match key concepts and intentions, not just words
-        4. Consider merchant names, purchase types, and general descriptions
-        5. Assign high confidence (0.8-1.0) for clear semantic matches
-        6. Assign medium confidence (0.5-0.7) for probable matches
-        7. Assign low confidence (0.0-0.4) for weak or uncertain matches
+        1. Focus on core concepts and semantic meaning, not exact text matching
+        2. Common variations to match:
+           - "gas purchase" = "bought gas" = "filled up gas tank" = "gas station" = "fuel"
+           - "grocery" = "groceries" = "food shopping" = "supermarket"
+           - "coffee" = "starbucks" = "cafe" = "coffee shop"
+        3. Ignore minor differences in wording or phrasing
+        4. Consider partial matches if they capture the main concept
+        5. Match confidence levels:
+           - High (0.8-1.0): Clear semantic match or obvious similarity
+           - Medium (0.5-0.7): Related concepts or partial matches
+           - Low (0.3-0.4): Possible but uncertain matches
 
         Return JSON in this format:
         {{

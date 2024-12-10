@@ -35,9 +35,21 @@ class TransactionManager:
                     raise ValueError("No transactions found in the recent period")
                 
                 # Use GPT to find the best match
+                if not self.gpt:
+                    raise ValueError("GPT processor not initialized")
+                    
+                print(f"Searching for transaction matching: {description}")
+                print(f"Available transactions: {transactions}")
+                
                 match = self.gpt.find_matching_transaction(description, transactions)
-                if not match or match['confidence'] < 0.4:  # Lower confidence threshold for better matching
+                print(f"Match result: {match}")
+                
+                if not match:
                     raise ValueError(f"No transaction found that matches '{description}'")
+                    
+                if match['confidence'] < 0.3:  # Even lower threshold for better matching
+                    print(f"Low confidence match: {match['confidence']}")
+                    raise ValueError(f"No transaction found that confidently matches '{description}'. Best match had confidence: {match['confidence']}")
                 
                 # Use the matched transaction's exact description
                 try:
