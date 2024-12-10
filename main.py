@@ -63,12 +63,6 @@ if not df.empty:
                 width="large",
                 disabled=True,
             ),
-            "delete": st.column_config.CheckboxColumn(
-                "Delete",
-                help="Select to delete this transaction",
-                width="small",
-                default=False,
-            ),
         },
         hide_index=True,
         use_container_width=True,
@@ -79,23 +73,6 @@ if not df.empty:
     if not df.equals(edited_df):
         for index, row in edited_df.iterrows():
             original_row = df.loc[index]
-            # Check if row is marked for deletion
-            if row.get('delete', False):
-                try:
-                    # Ensure we have a valid ID before attempting deletion
-                    if 'id' in row and row['id']:
-                        transaction_manager.delete_transaction(int(row['id']))
-                        st.success(f"Transaction {row['id']} deleted successfully")
-                        time.sleep(0.5)  # Brief pause to show success message
-                        st.experimental_rerun()  # Force a complete page refresh
-                    else:
-                        st.error("Cannot delete: Invalid transaction ID")
-                    continue  # Skip updating other fields if deleting
-                except Exception as e:
-                    st.error(f"Error deleting transaction: {str(e)}")
-                    st.experimental_rerun()  # Refresh even on error to maintain consistent state
-            
-            # Update other fields if changed
             for field in ['date', 'type', 'amount']:
                 if row[field] != original_row[field]:
                     try:
