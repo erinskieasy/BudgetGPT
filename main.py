@@ -33,6 +33,12 @@ if not df.empty:
     edited_df = st.data_editor(
         df,
         column_config={
+            "delete": st.column_config.CheckboxColumn(
+                "Delete",
+                help="Select to delete transaction",
+                default=False,
+                width="small",
+            ),
             "id": st.column_config.NumberColumn(
                 "ID",
                 help="Transaction ID",
@@ -69,9 +75,21 @@ if not df.empty:
         num_rows="dynamic",
     )
     
-    # Check for changes and update the database
+    # Check for deletions and changes
     if not df.equals(edited_df):
+        # Handle deletions
         for index, row in edited_df.iterrows():
+            if row.get('delete', False):
+                try:
+                    if transaction_manager.delete_transaction(row['id']):
+                        st.success(f"Deleted transaction {row['id']}")
+                        time.sleep(0.5)  # Brief pause to show success message
+                        st.rerun()  # Refresh to show updated data
+                    continue  # Skip updates if deleting
+                except Exception as e:
+                    st.error(f"Error deleting transaction: {str(e)}")
+            
+            # Handle updates
             original_row = df.loc[index]
             for field in ['date', 'type', 'amount']:
                 if row[field] != original_row[field]:
