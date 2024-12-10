@@ -185,19 +185,33 @@ class TransactionManager:
     def add_transaction(self, transaction_data):
         # Validate and process the transaction data
         try:
+            print(f"DEBUG: Adding transaction with data: {transaction_data}")  # Debug log
+            
             date = datetime.strptime(transaction_data['date'], '%Y-%m-%d').date()
+            print(f"DEBUG: Parsed date: {date}")  # Debug log
+            
             amount = float(transaction_data['amount'])
+            print(f"DEBUG: Parsed amount: {amount}")  # Debug log
+            
             type_trans = transaction_data['type'].lower()
+            print(f"DEBUG: Transaction type: {type_trans}")  # Debug log
+            
             description = transaction_data['description']
+            print(f"DEBUG: Description: {description}")  # Debug log
 
             # Validate transaction type
             if type_trans not in ['expense', 'subscription', 'income']:
                 raise ValueError("Invalid transaction type")
 
             # Add to database
-            return self.db.add_transaction(date, type_trans, description, amount)
+            result = self.db.add_transaction(date, type_trans, description, amount)
+            print(f"DEBUG: Database add result: {result}")  # Debug log
+            return result
+            
         except (ValueError, KeyError) as e:
-            raise ValueError(f"Invalid transaction data: {str(e)}")
+            error_msg = f"Invalid transaction data: {str(e)}"
+            print(f"DEBUG: Error in add_transaction: {error_msg}")  # Debug log
+            raise ValueError(error_msg)
 
     def get_transactions_df(self):
         """

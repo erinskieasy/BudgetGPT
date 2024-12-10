@@ -77,20 +77,31 @@ if input_method == "Chat Assistant":
                     
                     # If there's a suggested action, ask for confirmation
                     if 'action' in response and response['action']:
+                        print("DEBUG: Found action in response:", response['action'])  # Debug log
                         # Store the action in session state
                         st.session_state.pending_action = response['action']
+                        print("DEBUG: Stored action in session state")  # Debug log
+                        
                         if st.button("Apply this change?"):
+                            print("DEBUG: Apply button clicked")  # Debug log
                             try:
+                                print("DEBUG: Attempting to process command:", st.session_state.pending_action)  # Debug log
                                 # Process the command
-                                if transaction_manager.process_command(st.session_state.pending_action):
+                                result = transaction_manager.process_command(st.session_state.pending_action)
+                                print("DEBUG: Command processing result:", result)  # Debug log
+                                
+                                if result:
                                     st.success("Changes applied successfully!")
+                                    print("DEBUG: Changes applied successfully")  # Debug log
                                     # Clear the pending action and chat history to refresh the context
                                     st.session_state.pending_action = None
                                     # Force refresh to show updated data
                                     st.experimental_rerun()
                                 else:
+                                    print("DEBUG: Command processing returned False")  # Debug log
                                     st.error("Failed to apply changes. Please try again.")
                             except Exception as e:
+                                print(f"DEBUG: Error processing command: {str(e)}")  # Debug log
                                 st.error(f"Failed to apply changes: {str(e)}")
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
