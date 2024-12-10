@@ -2,6 +2,7 @@ import streamlit as st
 import plotly.express as px
 import pandas as pd
 import io
+import time
 from datetime import datetime
 from database import Database
 from gpt_processor import GPTProcessor
@@ -28,11 +29,61 @@ stats = transaction_manager.get_summary_stats()
 st.subheader("Transaction History")
 df = transaction_manager.get_transactions_df()
 if not df.empty:
-    st.dataframe(
-        df[['date', 'type', 'description', 'amount']],
+    # Create editable columns
+    edited_df = st.data_editor(
+        df,
+        column_config={
+            "id": st.column_config.NumberColumn(
+                "ID",
+                help="Transaction ID",
+                width="small",
+                disabled=True,
+            ),
+            "date": st.column_config.DateColumn(
+                "Date",
+                help="Transaction date",
+                width="medium",
+            ),
+            "type": st.column_config.SelectboxColumn(
+                "Type",
+                help="Transaction type",
+                width="medium",
+                options=["income", "expense", "subscription"],
+            ),
+            "amount": st.column_config.NumberColumn(
+                "Amount",
+                help="Transaction amount",
+                width="medium",
+                format="$%.2f",
+                step=0.01,
+            ),
+            "description": st.column_config.TextColumn(
+                "Description",
+                help="Transaction description",
+                width="large",
+                disabled=True,
+            ),
+        },
         hide_index=True,
-        use_container_width=True
+        use_container_width=True,
+        num_rows="dynamic",
     )
+    
+    # Check for changes and update the database
+    if not df.equals(edited_df):
+        for index, row in edited_df.iterrows():
+            original_row = df.loc[index]
+            for field in ['date', 'type', 'amount']:
+                if row[field] != original_row[field]:
+                    try:
+                        transaction_manager.update_transaction_field(
+                            row['id'], field, row[field]
+                        )
+                        st.success(f"Updated {field} for transaction {row['id']}")
+                        time.sleep(0.5)  # Brief pause to show success message
+                        st.rerun()  # Refresh to show updated data
+                    except Exception as e:
+                        st.error(f"Error updating {field}: {str(e)}")
 else:
     st.info("No transactions recorded yet")
 

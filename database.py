@@ -58,6 +58,22 @@ class Database:
             """)
             return cur.fetchone()[0]
 
+    def update_transaction(self, id, field, value):
+        """Update a specific field of a transaction."""
+        valid_fields = {'date', 'type', 'amount'}
+        if field not in valid_fields:
+            raise ValueError(f"Invalid field: {field}")
+        
+        with self.conn.cursor() as cur:
+            cur.execute(f"""
+                UPDATE transactions 
+                SET {field} = %s
+                WHERE id = %s
+                RETURNING id;
+            """, (value, id))
+            self.conn.commit()
+            return cur.fetchone() is not None
+
     def __del__(self):
         if hasattr(self, 'conn'):
             self.conn.close()

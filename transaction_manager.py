@@ -31,6 +31,20 @@ class TransactionManager:
         df['date'] = pd.to_datetime(df['date']).dt.date
         return df
 
+    def update_transaction_field(self, transaction_id, field, value):
+        """Update a specific field of a transaction."""
+        try:
+            if field == 'type' and value not in ['expense', 'subscription', 'income']:
+                raise ValueError("Invalid transaction type")
+            elif field == 'amount':
+                value = float(value)
+            elif field == 'date':
+                value = datetime.strptime(value, '%Y-%m-%d').date()
+            
+            return self.db.update_transaction(transaction_id, field, value)
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid {field} value: {str(e)}")
+
     def get_summary_stats(self):
         df = self.get_transactions_df()
         if df.empty:
