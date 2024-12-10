@@ -97,33 +97,44 @@ if not df.empty:
     col1, col2 = st.columns(2)
     
     with col1:
+        # Create a DataFrame for the pie chart
         type_dist = df['type'].value_counts()
+        type_percentages = (type_dist / len(df) * 100).round(1)
+        pie_data = pd.DataFrame({
+            'Type': type_dist.index,
+            'Count': type_dist.values,
+            'Percentage': type_percentages.values
+        })
+        
         fig_pie = px.pie(
-            values=type_dist.values,
-            names=type_dist.index,
+            data_frame=pie_data,
+            values='Count',
+            names='Type',
             title='Transaction Types Distribution',
             hole=0.4,  # Creates a donut chart
-            labels={'label': 'Transaction Type', 'value': 'Count'},
-            hover_data=['Percentage']  # Add percentage to hover info
         )
         fig_pie.update_traces(
             textposition='inside',
             textinfo='percent+label',
             hovertemplate="<b>%{label}</b><br>" +
                          "Count: %{value}<br>" +
-                         "Percentage: %{percent}<br><extra></extra>"
+                         "Percentage: %{percent:.1f}%<extra></extra>"
         )
         st.plotly_chart(fig_pie)
     
     with col2:
-        type_amounts = df.groupby('type')['amount'].sum()
+        # Create a DataFrame for the bar chart
+        type_amounts = df.groupby('type')['amount'].sum().reset_index()
+        type_amounts.columns = ['Type', 'Amount']
+        
         fig_bar = px.bar(
-            x=type_amounts.index,
-            y=type_amounts.values,
+            data_frame=type_amounts,
+            x='Type',
+            y='Amount',
             title='Amount by Transaction Type',
-            labels={'x': 'Transaction Type', 'y': 'Total Amount ($)'},
-            color=type_amounts.index,  # Color bars by transaction type
-            text=type_amounts.round(2)  # Show values on bars
+            labels={'Type': 'Transaction Type', 'Amount': 'Total Amount ($)'},
+            color='Type',  # Color bars by transaction type
+            text='Amount'  # Show values on bars
         )
         fig_bar.update_traces(
             texttemplate='$%{text:,.2f}',
