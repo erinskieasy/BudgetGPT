@@ -101,7 +101,17 @@ if not df.empty:
         fig_pie = px.pie(
             values=type_dist.values,
             names=type_dist.index,
-            title='Transaction Types Distribution'
+            title='Transaction Types Distribution',
+            hole=0.4,  # Creates a donut chart
+            labels={'label': 'Transaction Type', 'value': 'Count'},
+            hover_data=['Percentage']  # Add percentage to hover info
+        )
+        fig_pie.update_traces(
+            textposition='inside',
+            textinfo='percent+label',
+            hovertemplate="<b>%{label}</b><br>" +
+                         "Count: %{value}<br>" +
+                         "Percentage: %{percent}<br><extra></extra>"
         )
         st.plotly_chart(fig_pie)
     
@@ -111,7 +121,17 @@ if not df.empty:
             x=type_amounts.index,
             y=type_amounts.values,
             title='Amount by Transaction Type',
-            labels={'x': 'Transaction Type', 'y': 'Total Amount ($)'}
+            labels={'x': 'Transaction Type', 'y': 'Total Amount ($)'},
+            color=type_amounts.index,  # Color bars by transaction type
+            text=type_amounts.round(2)  # Show values on bars
+        )
+        fig_bar.update_traces(
+            texttemplate='$%{text:,.2f}',
+            textposition='auto',
+        )
+        fig_bar.update_layout(
+            showlegend=False,
+            hovermode='x unified'
         )
         st.plotly_chart(fig_bar)
     
@@ -134,6 +154,10 @@ if not df.empty:
     # Calculate month-over-month changes
     stats_table['MoM Change'] = stats_table['Total Amount'].pct_change().round(3) * 100
     stats_table['MoM Change'] = stats_table['MoM Change'].map('{:+.1f}%'.format)
+    
+    # Add transaction count change
+    stats_table['Count Change'] = stats_table['Transaction Count'].pct_change().round(3) * 100
+    stats_table['Count Change'] = stats_table['Count Change'].map('{:+.1f}%'.format)
     
     # Display the enhanced statistics
     st.dataframe(stats_table.style.format({
