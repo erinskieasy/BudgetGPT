@@ -17,6 +17,27 @@ def init_components():
 
 # Page configuration
 st.set_page_config(page_title="GPT Budget Tracker", layout="wide")
+
+# Inject PWA components
+pwa_code = """
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#000000">
+    <link rel="apple-touch-icon" href="/static/generated-icon.png">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/static/sw.js')
+                    .then(function(registration) {
+                        console.log('ServiceWorker registration successful');
+                    }, function(err) {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+    </script>
+"""
+st.markdown(pwa_code, unsafe_allow_html=True)
+
 st.title("GPT Budget Tracker")
 
 # Initialize components
