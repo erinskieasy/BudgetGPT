@@ -51,10 +51,14 @@ class TransactionManager:
     def delete_transaction(self, transaction_id):
         """Delete a transaction by ID."""
         try:
+            # Ensure we have a valid ID
+            transaction_id = int(transaction_id)
             success = self.db.delete_transaction(transaction_id)
             if not success:
                 raise ValueError(f"Transaction {transaction_id} not found")
             return True
+        except ValueError as e:
+            raise ValueError(str(e))
         except Exception as e:
             raise Exception(f"Failed to delete transaction: {str(e)}")
 
