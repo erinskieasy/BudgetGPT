@@ -50,7 +50,7 @@ if not df.empty:
             "id": st.column_config.NumberColumn(
                 "ID",
                 help="Transaction ID",
-                width=50,
+                width=40,
                 disabled=True,
             ),
             "date": st.column_config.DateColumn(
@@ -61,20 +61,20 @@ if not df.empty:
             "type": st.column_config.SelectboxColumn(
                 "Type",
                 help="Transaction type",
-                width=100,
+                width=80,
                 options=["income", "expense", "subscription"],
             ),
             "amount": st.column_config.NumberColumn(
                 "Amount",
                 help="Transaction amount",
-                width=100,
+                width=80,
                 format="$%.2f",
                 step=0.01,
             ),
             "description": st.column_config.TextColumn(
                 "Description",
                 help="Transaction description",
-                width=200,
+                width=150,
                 disabled=True,
             ),
         },
