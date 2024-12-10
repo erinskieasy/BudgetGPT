@@ -12,7 +12,7 @@ from transaction_manager import TransactionManager
 def init_components():
     db = Database()
     gpt = GPTProcessor()
-    return TransactionManager(db, gpt), gpt
+    return TransactionManager(db), gpt
 
 # Page configuration
 st.set_page_config(page_title="GPT Budget Tracker", layout="wide")
@@ -21,90 +21,32 @@ st.title("GPT Budget Tracker")
 # Initialize components
 transaction_manager, gpt_processor = init_components()
 
-# Initialize chat history in session state if it doesn't exist
-if 'chat_history' not in st.session_state:
-    st.session_state.chat_history = []
-
 # Sidebar for input methods
 st.sidebar.title("Add Transaction")
 input_method = st.sidebar.radio(
     "Choose input method:",
-    ["Chat Assistant", "Receipt Upload"]
+    ["Text Input", "Receipt Upload"]
 )
 
-# Chat interface section
-if input_method == "Chat Assistant":
-    # Display current transactions
-    st.subheader("Current Transactions")
-    df = transaction_manager.get_transactions_df()
-    if not df.empty:
-        st.dataframe(
-            df[['row', 'date', 'type', 'description', 'amount']],
-            hide_index=True,
-            use_container_width=True
-        )
-    else:
-        st.info("No transactions recorded yet")
-
-    # Display chat history
-    st.subheader("Chat with GPT Assistant")
-    for message in st.session_state.chat_history:
-        with st.chat_message(message["role"]):
-            st.write(message["content"])
-
-    # Chat input
-    if prompt := st.chat_input("Chat about your transactions..."):
-        # Add user message to chat history
-        st.session_state.chat_history.append({"role": "user", "content": prompt})
-        
-        # Get current transactions for context
-        transactions_df = transaction_manager.get_transactions_df()
-        
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
+# Text input section
+if input_method == "Text Input":
+    st.sidebar.subheader("Enter Transaction Details")
+    text_input = st.sidebar.text_area(
+        "Describe your transaction:",
+        placeholder="Example: Spent $45.99 at Grocery Store yesterday"
+    )
+    
+    if st.sidebar.button("Process Transaction"):
+        if text_input:
+            with st.spinner("Processing transaction..."):
                 try:
-                    # Process the chat message
-                    response = gpt_processor.process_chat_message(prompt, transactions_df)
-                    
-                    # Display the response
-                    st.write(response['message'])
-                    
-                    # Add assistant's response to chat history
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "content": response['message']
-                    })
-                    
-                    # If there's a suggested action, ask for confirmation
-                    if 'action' in response and response['action']:
-                        print("DEBUG: Found action in response:", response['action'])  # Debug log
-                        # Store the action in session state
-                        st.session_state.pending_action = response['action']
-                        print("DEBUG: Stored action in session state")  # Debug log
-                        
-                        if st.button("Apply this change?"):
-                            print("DEBUG: Apply button clicked")  # Debug log
-                            try:
-                                print("DEBUG: Attempting to process command:", st.session_state.pending_action)  # Debug log
-                                # Process the command
-                                result = transaction_manager.process_command(st.session_state.pending_action)
-                                print("DEBUG: Command processing result:", result)  # Debug log
-                                
-                                if result:
-                                    st.success("Changes applied successfully!")
-                                    print("DEBUG: Changes applied successfully")  # Debug log
-                                    # Clear the pending action and chat history to refresh the context
-                                    st.session_state.pending_action = None
-                                    # Force refresh to show updated data
-                                    st.experimental_rerun()
-                                else:
-                                    print("DEBUG: Command processing returned False")  # Debug log
-                                    st.error("Failed to apply changes. Please try again.")
-                            except Exception as e:
-                                print(f"DEBUG: Error processing command: {str(e)}")  # Debug log
-                                st.error(f"Failed to apply changes: {str(e)}")
+                    transaction_data = gpt_processor.process_text_input(text_input)
+                    transaction_manager.add_transaction(transaction_data)
+                    st.sidebar.success("Transaction added successfully!")
                 except Exception as e:
-                    st.error(f"Error: {str(e)}")
+                    st.sidebar.error(f"Error processing transaction: {str(e)}")
+        else:
+            st.sidebar.warning("Please enter a transaction description")
 
 # Receipt upload section
 else:
@@ -131,7 +73,7 @@ with col1:
     df = transaction_manager.get_transactions_df()
     if not df.empty:
         st.dataframe(
-            df[['row', 'date', 'type', 'description', 'amount']],
+            df[['date', 'type', 'description', 'amount']],
             hide_index=True,
             use_container_width=True
         )
