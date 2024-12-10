@@ -44,11 +44,16 @@ class GPTProcessor:
         # If not a deletion request, process as normal transaction
         prompt = f"""
         Extract the following information from this transaction description and return as JSON:
-        1. date (in YYYY-MM-DD format, use today if not specified)
+        1. date (in YYYY-MM-DD format):
+           - If no date mentioned, use today's date
+           - For relative dates like "yesterday", "last week", use appropriate date
+           - For partial dates like "jan 1st" or "the 4th", assume current year
+           - For month/day without year like "4th of november", assume current year
         2. type (either 'income', 'expense', or 'subscription')
         3. description (a clear, concise summary)
         4. amount (numerical value)
 
+        Current date for reference: {datetime.now().strftime('%Y-%m-%d')}
         Transaction text: {text}
 
         Response format:
@@ -58,6 +63,12 @@ class GPTProcessor:
             "description": "summary",
             "amount": float
         }}
+
+        Examples of date processing:
+        - "yesterday" -> date should be yesterday's date
+        - "jan 1st" -> should be "2024-01-01" (assuming current year)
+        - "4th of november" -> should be "2024-11-04" (assuming current year)
+        - No date mentioned -> use today's date ({datetime.now().strftime('%Y-%m-%d')})
         """
 
         response = self.client.chat.completions.create(
