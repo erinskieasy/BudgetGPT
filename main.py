@@ -104,7 +104,7 @@ with col3:
 col1, col2 = st.columns([0.1, 0.9])
 
 with col1:
-    uploaded_file = st.file_uploader("📄", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
+    uploaded_file = st.file_uploader("➕", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
     if uploaded_file is not None:
         with st.spinner("Processing receipt..."):
             try:
