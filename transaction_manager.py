@@ -18,8 +18,15 @@ class TransactionManager:
                 if not criteria:
                     raise ValueError("No criteria provided for modification")
                 
-                date = datetime.strptime(criteria['date'], '%Y-%m-%d').date()
-                description = criteria['description']
+                # Use today's date if no date is provided
+                date_str = criteria.get('date', datetime.now().strftime('%Y-%m-%d'))
+                if not date_str:
+                    date_str = datetime.now().strftime('%Y-%m-%d')
+                date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                
+                description = criteria.get('description', '')
+                if not description:
+                    raise ValueError("No description provided for finding the transaction")
                 
                 if command == 'delete':
                     success = self.db.delete_transaction(date, description)

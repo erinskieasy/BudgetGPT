@@ -16,6 +16,7 @@ class GPTProcessor:
         Analyze the input text and determine if it's a new transaction or a modification command.
         If it's a modification command (delete/update), return a command object.
         If it's a new transaction, extract the transaction details.
+        Use today's date ({datetime.now().strftime('%Y-%m-%d')}) if no specific date is mentioned.
 
         Input text: {text}
 
@@ -23,7 +24,7 @@ class GPTProcessor:
         {{
             "command": "add",
             "transaction": {{
-                "date": "YYYY-MM-DD",
+                "date": "YYYY-MM-DD",  # Use today's date if not specified
                 "type": "income/expense/subscription",
                 "description": "summary",
                 "amount": float
@@ -34,21 +35,21 @@ class GPTProcessor:
         {{
             "command": "delete/update",
             "criteria": {{
-                "date": "YYYY-MM-DD",  # Date of transaction to modify
+                "date": "YYYY-MM-DD",  # Use today's date if not specified
                 "description": "search terms"  # Keywords to identify transaction
             }},
             "updates": {{  # Only for update command
-                "date": "YYYY-MM-DD",  # New date if changing date
-                "type": "income/expense/subscription",  # New type if changing type
-                "description": "new description",  # New description if changing description
-                "amount": float  # New amount if changing amount
+                "date": "YYYY-MM-DD",  # Optional, include only if changing date
+                "type": "income/expense/subscription",  # Optional, include only if changing type
+                "description": "new description",  # Optional, include only if changing description
+                "amount": float  # Optional, include only if changing amount
             }}
         }}
 
         Example modifications:
-        - "Delete the grocery transaction from yesterday"
-        - "Change the date of my coffee expense to last Friday"
-        - "Update the type of my salary entry to income"
+        - "Delete the grocery transaction from today" -> Use today's date
+        - "Change my coffee expense to subscription" -> Use today's date, only include type in updates
+        - "Update the amount of lunch to 15.99" -> Use today's date, only include amount in updates
         """
 
         response = self.client.chat.completions.create(
