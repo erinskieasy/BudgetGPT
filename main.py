@@ -75,21 +75,21 @@ if not df.empty:
         num_rows="dynamic",
     )
     
-    # Check for deletions and changes
-    if not df.equals(edited_df):
-        # Handle deletions
+    # Handle deletions first
+    rows_to_delete = edited_df[edited_df['delete'] == True]
+    if not rows_to_delete.empty:
+        for _, row in rows_to_delete.iterrows():
+            try:
+                if transaction_manager.delete_transaction(row['id']):
+                    st.success(f"Deleted transaction {row['id']}")
+                    time.sleep(0.5)  # Brief pause to show success message
+                    st.rerun()  # Refresh to show updated data
+            except Exception as e:
+                st.error(f"Error deleting transaction: {str(e)}")
+    
+    # Handle updates only if no deletions were processed
+    if rows_to_delete.empty:
         for index, row in edited_df.iterrows():
-            if row.get('delete', False):
-                try:
-                    if transaction_manager.delete_transaction(row['id']):
-                        st.success(f"Deleted transaction {row['id']}")
-                        time.sleep(0.5)  # Brief pause to show success message
-                        st.rerun()  # Refresh to show updated data
-                    continue  # Skip updates if deleting
-                except Exception as e:
-                    st.error(f"Error deleting transaction: {str(e)}")
-            
-            # Handle updates
             original_row = df.loc[index]
             for field in ['date', 'type', 'amount']:
                 if row[field] != original_row[field]:
