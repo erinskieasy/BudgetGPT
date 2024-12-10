@@ -13,12 +13,17 @@ def serve_static_files():
     static_dir.mkdir(exist_ok=True)
     
     # Always copy the files to ensure they're up to date
-    shutil.copy2(static_dir / "manifest.json", streamlit_static / "manifest.json")
-    shutil.copy2(static_dir / "sw.js", streamlit_static / "sw.js")
-    
-    # Copy the icon and ensure it exists
-    icon_path = Path("generated-icon.png")
-    if icon_path.exists():
-        shutil.copy2(icon_path, streamlit_static / "generated-icon.png")
-    else:
-        st.error("Icon file not found. Please ensure generated-icon.png exists in the root directory.")
+    for file in ["manifest.json", "sw.js", "icon-192.png", "icon-512.png"]:
+        src = static_dir / file
+        dst = streamlit_static / file
+        if src.exists():
+            shutil.copy2(src, dst)
+        else:
+            st.error(f"Static file not found: {file}")
+            
+    # Ensure the icons are generated
+    from generate_icons import generate_pwa_icon
+    for size in [192, 512]:
+        icon = generate_pwa_icon(size)
+        icon_path = static_dir / f"icon-{size}.png"
+        icon.save(icon_path)
