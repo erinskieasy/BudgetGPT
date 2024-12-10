@@ -65,23 +65,51 @@ class GPTProcessor:
 
     def process_chat_message(self, message, transactions_context):
         """Process a chat message about transactions and determine appropriate actions."""
-        prompt = f"""
-        You are a helpful financial assistant. Help the user manage their transactions.
-        The user is chatting with you about their transactions. Below are the current transactions:
+        if not hasattr(self, 'conversation_history'):
+            self.conversation_history = []
+            self.last_context = None
 
+        # Update conversation history with the new message and context
+        self.conversation_history.append({
+            "role": "user",
+            "content": message,
+            "transactions_context": transactions_context
+        })
+        self.last_context = transactions_context
+
+        # Build the conversation history for GPT
+        conversation_summary = "\n\n".join([
+            f"Previous message: {msg['content']}\n"
+            f"Context at that time:\n{msg['transactions_context']}"
+            for msg in self.conversation_history[-3:]  # Keep last 3 messages for context
+        ])
+
+        prompt = f"""
+        You are a helpful financial assistant with perfect memory of our conversation.
+        Here are the recent messages and their context:
+
+        {conversation_summary}
+
+        Current transactions:
         {transactions_context}
 
-        User message: "{message}"
+        Latest user message: "{message}"
 
-        Analyze the user's message and:
-        1. If they're asking about transactions, provide helpful information
-        2. If they want to modify transactions, suggest specific changes
-        3. If they want to add new transactions, help format the data
+        Important instructions:
+        1. Remember the context from previous messages
+        2. If the user refers to transactions mentioned before, use that context
+        3. For vague references like "that transaction" or "it", look at the previous messages
+        4. Use the transaction amounts and dates to maintain continuity
+
+        Analyze the message and:
+        1. If asking about transactions, provide detailed information
+        2. If referring to previous transactions, use that context
+        3. For modifications, be specific about which transaction
 
         Return JSON in this format:
         {{
-            "message": "Your helpful response to the user",
-            "action": null  # Or include command data if a change is needed:
+            "message": "Your response, referencing specific transactions",
+            "action": null,  # Or include command data if a change is needed:
             # For adding: {{"command": "add", "transaction": {{"date": "YYYY-MM-DD", "type": "expense|income|subscription", "description": "string", "amount": float}}}}
             # For updating: {{"command": "update", "criteria": {{"date": "YYYY-MM-DD", "description": "string"}}, "updates": {{"date?": "YYYY-MM-DD", "type?": "string", "description?": "string", "amount?": float}}}}
             # For deleting: {{"command": "delete", "criteria": {{"date": "YYYY-MM-DD", "description": "string"}}}}
@@ -93,7 +121,7 @@ class GPTProcessor:
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a helpful financial assistant. Be friendly and clear in your responses."
+                    "content": "You are a helpful financial assistant with perfect memory. Be specific when referring to transactions and maintain context from previous messages."
                 },
                 {
                     "role": "user",
@@ -103,7 +131,16 @@ class GPTProcessor:
             response_format={"type": "json_object"}
         )
         
-        return json.loads(response.choices[0].message.content)
+        result = json.loads(response.choices[0].message.content)
+        
+        # Add assistant's response to conversation history
+        self.conversation_history.append({
+            "role": "assistant",
+            "content": result["message"],
+            "transactions_context": transactions_context
+        })
+        
+        return result
 
     def find_matching_transaction(self, description, transactions):
         """Find the best matching transaction based on semantic similarity."""
