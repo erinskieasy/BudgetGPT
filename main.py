@@ -22,9 +22,6 @@ st.title("GPT Budget Tracker")
 # Initialize components
 transaction_manager, gpt_processor = init_components()
 
-# Get financial stats
-stats = transaction_manager.get_summary_stats()
-
 # Transaction history table
 st.subheader("Transaction History")
 df = transaction_manager.get_transactions_df()
@@ -106,6 +103,9 @@ if not df.empty:
                         st.error(f"Error updating {field}: {str(e)}")
 else:
     st.info("No transactions recorded yet")
+
+# Get latest financial stats
+stats = transaction_manager.get_summary_stats()
 
 # Financial summary in columns
 col1, col2, col3 = st.columns(3)
