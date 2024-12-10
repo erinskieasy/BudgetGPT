@@ -42,9 +42,12 @@ class GPTProcessor:
             return {"action": "delete", "transaction_ids": delete_result["transaction_ids"]}
 
         # If not a deletion request, process as normal transaction
+        current_date = datetime.now().strftime('%Y-%m-%d')
         prompt = f"""
         Extract the following information from this transaction description and return as JSON:
-        1. date (in YYYY-MM-DD format, use today if not specified)
+        1. date (in YYYY-MM-DD format)
+   - If a specific date is mentioned, use that date
+   - If no date is mentioned, use today's date: {current_date}
         2. type (either 'income', 'expense', or 'subscription')
         3. description (a clear, concise summary)
         4. amount (numerical value)
@@ -57,6 +60,23 @@ class GPTProcessor:
             "type": "expense/subscription",
             "description": "summary",
             "amount": float
+        }}
+
+        Example responses:
+        Input: "Spent $50 on groceries"
+        {{
+            "date": "{current_date}",
+            "type": "expense",
+            "description": "Groceries",
+            "amount": 50.00
+        }}
+
+        Input: "Paid $30 for Netflix on November 4th"
+        {{
+            "date": "2024-11-04",
+            "type": "subscription",
+            "description": "Netflix subscription",
+            "amount": 30.00
         }}
         """
 
