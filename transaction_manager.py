@@ -36,7 +36,7 @@ class TransactionManager:
                 
                 # Use GPT to find the best match
                 match = self.gpt.find_matching_transaction(description, transactions)
-                if not match or match['confidence'] < 0.5:  # Confidence threshold
+                if not match or match['confidence'] < 0.4:  # Lower confidence threshold for better matching
                     raise ValueError(f"No transaction found that matches '{description}'")
                 
                 # Use the matched transaction's exact description

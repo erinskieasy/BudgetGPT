@@ -74,30 +74,49 @@ class GPTProcessor:
         )
         
         prompt = f"""
-        Find the best matching transaction from the list based on this description: "{description}"
+        You are a semantic matching expert. Given a user's description of a transaction,
+        find the most semantically similar transaction from the available list.
 
-        Available transactions (format: date | description | amount):
+        User's description: "{description}"
+
+        Available transactions (date | description | amount):
         {transactions_list}
+
+        Consider these matching rules:
+        1. Focus on semantic meaning, not exact text matching
+        2. "gas purchase", "bought gas", "filled up gas tank", "gas station" are semantically similar
+        3. Match key concepts and intentions, not just words
+        4. Consider merchant names, purchase types, and general descriptions
+        5. Assign high confidence (0.8-1.0) for clear semantic matches
+        6. Assign medium confidence (0.5-0.7) for probable matches
+        7. Assign low confidence (0.0-0.4) for weak or uncertain matches
 
         Return JSON in this format:
         {{
             "best_match": {{
                 "date": "YYYY-MM-DD",
-                "description": "exact description from the list",
+                "description": "exact description from list",
                 "confidence": float  # between 0 and 1
             }}
         }}
-        
-        If no reasonable match is found, set confidence to 0.
-        A match is reasonable if the descriptions are semantically similar
-        (e.g., "gas purchase" matches "Bought gas" or "Filled up gas tank").
+
+        If no good match is found, set confidence to 0.
         """
 
         response = self.client.chat.completions.create(
             model=self.model,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a semantic matching expert. Find the best matching transaction based on meaning, not just text similarity."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
             response_format={"type": "json_object"}
         )
         
         result = json.loads(response.choices[0].message.content)
-        return result['best_match']
+        return result.get('best_match')
