@@ -1,14 +1,14 @@
 import json
 import os
+import base64
 from datetime import datetime
 from openai import OpenAI
+import pandas as pd
 
-# the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-# do not change this unless explicitly requested by the user
 class GPTProcessor:
     def __init__(self):
-        self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-        self.model = "gpt-4o"
+        self.client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+        self.model = "gpt-4o"  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024
 
     def process_text_input(self, text):
         """Process natural language input into structured transaction data."""
@@ -34,20 +34,42 @@ class GPTProcessor:
         return json.loads(response.choices[0].message.content)
 
     def process_receipt_image(self, image_bytes):
-        """Process an uploaded receipt image and extract transaction details."""
+        """Process a receipt image and extract transaction information."""
+        # Convert image bytes to base64
+        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        
+        prompt = """
+        Analyze this receipt image and extract the following information:
+        - Total amount
+        - Date
+        - Description (store name or purpose)
+        
+        Return the information in this JSON format:
+        {
+            "date": "YYYY-MM-DD",
+            "type": "expense",
+            "description": "extracted description",
+            "amount": float
+        }
+        """
+        
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
+                {
+                    "role": "system",
+                    "content": "You are a receipt processing assistant."
+                },
                 {
                     "role": "user",
                     "content": [
                         {
                             "type": "text",
-                            "text": "Extract transaction details from this receipt image. Include total amount, date, and merchant/description."
+                            "text": prompt
                         },
                         {
                             "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{image_bytes}"}
+                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
                         }
                     ]
                 }
@@ -56,72 +78,71 @@ class GPTProcessor:
         )
         
         result = json.loads(response.choices[0].message.content)
-        return {
-            "date": datetime.now().strftime('%Y-%m-%d'),  # Default to today if not found
-            "type": "expense",
-            "description": result.get('merchant', 'Receipt purchase'),
-            "amount": float(result.get('amount', 0))
-        }
+        
+        # Validate the extracted data
+        try:
+            # Ensure date is in correct format
+            datetime.strptime(result['date'], '%Y-%m-%d')
+            # Ensure amount is a float
+            result['amount'] = float(result['amount'])
+            # Set type as expense for receipts
+            result['type'] = 'expense'
+            # Ensure description exists
+            if not result.get('description'):
+                raise ValueError("No description found in receipt")
+        except (ValueError, KeyError) as e:
+            raise ValueError(f"Failed to process receipt: {str(e)}")
+            
+        return result
 
-    def process_chat_message(self, message, transactions_context):
-        """Process a chat message about transactions and determine appropriate actions."""
-        if not hasattr(self, 'conversation_history'):
-            self.conversation_history = []
-            self.last_context = None
-
-        # Update conversation history with the new message and context
-        self.conversation_history.append({
-            "role": "user",
-            "content": message,
-            "transactions_context": transactions_context
-        })
-        self.last_context = transactions_context
-
-        # Build the conversation history for GPT
-        conversation_summary = "\n\n".join([
-            f"Previous message: {msg['content']}\n"
-            f"Context at that time:\n{msg['transactions_context']}"
-            for msg in self.conversation_history[-3:]  # Keep last 3 messages for context
-        ])
-
+    def process_chat_message(self, message, transactions_df):
+        """Process a chat message and generate an appropriate response and action."""
         prompt = f"""
-        You are a helpful financial assistant with perfect memory of our conversation.
-        Here are the recent messages and their context:
-
-        {conversation_summary}
-
-        Current transactions:
-        {transactions_context}
-
-        Latest user message: "{message}"
-
-        Important instructions:
-        1. Remember the context from previous messages
-        2. If the user refers to transactions mentioned before, use that context
-        3. For vague references like "that transaction" or "it", look at the previous messages
-        4. Use the transaction amounts and dates to maintain continuity
-
+        You are a financial assistant helping users manage their transactions.
+        
+        Current transactions in the database (with row numbers):
+        {transactions_df.to_string() if not transactions_df.empty else "No transactions"}
+        
+        User message: {message}
+        
         Analyze the message and:
-        1. If asking about transactions, provide detailed information
-        2. If referring to previous transactions, use that context
-        3. For modifications, be specific about which transaction
+        1. If it's asking for information, provide a helpful response
+        2. If it's requesting a transaction modification, use one of these functions:
+           a) Add new transaction:
+              - Command: "add"
+              - Needs: date, type (expense/income/subscription), description, amount
+           
+           b) Delete transaction by row:
+              - Command: "delete"
+              - Needs: row_number from table
+           
+           c) Update transaction by row:
+              - Command: "update"
+              - Needs: row_number from table
+              - Can update: date, type, description, amount
 
         Return JSON in this format:
         {{
-            "message": "Your response, referencing specific transactions",
-            "action": null,  # Or include command data if a change is needed:
-            # For adding: {{"command": "add", "transaction": {{"date": "YYYY-MM-DD", "type": "expense|income|subscription", "description": "string", "amount": float}}}}
-            # For updating: {{"command": "update", "criteria": {{"date": "YYYY-MM-DD", "description": "string"}}, "updates": {{"date?": "YYYY-MM-DD", "type?": "string", "description?": "string", "amount?": float}}}}
-            # For deleting: {{"command": "delete", "criteria": {{"date": "YYYY-MM-DD", "description": "string"}}}}
+            "message": "Your response to the user",
+            "action": {{
+                "command": "add|update|delete",
+                ... command specific fields ...
+            }} or null if no action needed
         }}
+        
+        Important:
+        - Use exact row numbers from the table (they start at 1)
+        - For updates and deletes, reference the specific row number
+        - Format dates as YYYY-MM-DD
+        - Transaction types must be: expense, income, or subscription
         """
-
+        
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a helpful financial assistant with perfect memory. Be specific when referring to transactions and maintain context from previous messages."
+                    "content": "You are a helpful financial assistant."
                 },
                 {
                     "role": "user",
@@ -133,63 +154,117 @@ class GPTProcessor:
         
         result = json.loads(response.choices[0].message.content)
         
-        # Add assistant's response to conversation history
-        self.conversation_history.append({
-            "role": "assistant",
-            "content": result["message"],
-            "transactions_context": transactions_context
-        })
+        # Process the command if present
+        if result.get('action'):
+            command = result['action'].get('command')
+            
+            # Validate row numbers for update and delete commands
+            if command in ['update', 'delete']:
+                row_number = result['action'].get('row_number')
+                if not row_number or not isinstance(row_number, int) or row_number < 1:
+                    result['action'] = None
+                    result['message'] += "\nI couldn't determine which transaction to modify. Could you specify which row number?"
+                elif transactions_df.empty or row_number > len(transactions_df):
+                    result['action'] = None
+                    result['message'] += f"\nRow number {row_number} doesn't exist in the transaction table."
+            
+            # Validate add transaction data
+            elif command == 'add':
+                transaction = result['action'].get('transaction', {})
+                required_fields = ['date', 'type', 'description', 'amount']
+                if not all(field in transaction for field in required_fields):
+                    result['action'] = None
+                    result['message'] += "\nI couldn't get all the required information for adding a transaction."
         
         return result
-    def generate_sql_command(self, action, transactions_context):
-        """Generate SQL command for transaction modifications."""
-        prompt = f"""
-        You are a PostgreSQL expert. Generate a safe SQL command for the following action.
-        Current transactions in the database:
-        {transactions_context}
 
-        Requested action:
-        {json.dumps(action, indent=2)}
-
-        Database schema:
-        - Table name: transactions
-        - Columns: id, date (date), type (text), description (text), amount (numeric), created_at (timestamp)
-
-        Rules:
-        1. Generate precise SQL that will affect only the intended transaction
-        2. Use date ranges of ±1 day for date matching to be flexible
-        3. Use ILIKE with wildcards for fuzzy description matching
-        4. For updates, only include fields that are actually being modified
-        5. Return a single SQL command with proper parameter placeholders (%s)
-        6. For UPDATE commands:
-           - Only update specified fields
-           - Use the SET clause only for modified fields
-           - Include both date and description in WHERE clause
-        7. For DELETE commands:
-           - Always include both date and description in WHERE clause
-        8. For INSERT commands:
-           - Include values for all required fields (date, type, description, amount)
-           - created_at should be handled by database default
-
-        Example formats:
-        UPDATE: UPDATE transactions SET amount = %s WHERE date BETWEEN %s::date - INTERVAL '1 day' AND %s::date + INTERVAL '1 day' AND description ILIKE %s
-        DELETE: DELETE FROM transactions WHERE date BETWEEN %s::date - INTERVAL '1 day' AND %s::date + INTERVAL '1 day' AND description ILIKE %s
-        INSERT: INSERT INTO transactions (date, type, description, amount) VALUES (%s, %s, %s, %s)
-
-        Return JSON in this format:
-        {{
-            "sql": "SQL command with %s placeholders",
-            "params": ["list", "of", "parameters"],
-            "type": "update|delete|insert"
-        }}
+    def process_transaction_command(self, user_intent, transactions_df):
         """
-
+        Process user intent and return appropriate transaction command.
+        
+        Available Functions:
+        1. add_transaction(transaction_data):
+           - Adds a new transaction
+           - Required fields: date (YYYY-MM-DD), type (expense/income/subscription), description, amount
+        
+        2. delete_transaction_by_row(row_number):
+           - Deletes transaction by its row number in the table
+           - Required: row_number (int)
+        
+        3. update_transaction_by_row(row_number, updates):
+           - Updates transaction by its row number
+           - Required: row_number (int)
+           - updates can include: date, type, description, amount
+        
+        Example commands:
+        {
+            "command": "add",
+            "transaction": {
+                "date": "2024-12-10",
+                "type": "expense",
+                "description": "Grocery shopping",
+                "amount": 50.00
+            }
+        }
+        
+        {
+            "command": "delete",
+            "row_number": 1  # Deletes first transaction in table
+        }
+        
+        {
+            "command": "update",
+            "row_number": 1,  # Updates first transaction in table
+            "updates": {
+                "amount": 75.00,
+                "description": "Updated description"
+            }
+        }
+        """
+        prompt = f"""
+        You are a transaction processing assistant. Analyze the user's intent and the current transactions table to generate the appropriate command.
+        
+        Current transactions (with row numbers):
+        {transactions_df.to_string() if not transactions_df.empty else "No transactions"}
+        
+        User intent: {user_intent}
+        
+        Generate a command that uses one of these functions:
+        1. Add new transaction:
+           - Command: "add"
+           - Needs: date, type (expense/income/subscription), description, amount
+        
+        2. Delete transaction by row:
+           - Command: "delete"
+           - Needs: row_number from table
+        
+        3. Update transaction by row:
+           - Command: "update"
+           - Needs: row_number from table
+           - Can update: date, type, description, amount
+        
+        Return the command as a JSON object with these fields:
+        - command: "add", "delete", or "update"
+        - For add: include "transaction" object with all required fields
+        - For delete: include "row_number"
+        - For update: include "row_number" and "updates" object with fields to change
+        
+        Example: See function documentation above.
+        
+        Important:
+        - Row numbers start at 1
+        - Use exact row numbers from the table
+        - For updates and deletes, user must reference existing transaction
+        - Dates must be in YYYY-MM-DD format
+        - Transaction types must be: expense, income, or subscription
+        """
+        
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a PostgreSQL expert. Generate precise and safe SQL commands."
+                    "content": "You are a transaction processing assistant. Generate precise commands based on user intent."
                 },
                 {
                     "role": "user",

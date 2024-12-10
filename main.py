@@ -39,7 +39,7 @@ if input_method == "Chat Assistant":
     df = transaction_manager.get_transactions_df()
     if not df.empty:
         st.dataframe(
-            df[['date', 'type', 'description', 'amount']],
+            df[['row', 'date', 'type', 'description', 'amount']],
             hide_index=True,
             use_container_width=True
         )
@@ -59,13 +59,12 @@ if input_method == "Chat Assistant":
         
         # Get current transactions for context
         transactions_df = transaction_manager.get_transactions_df()
-        transactions_context = transactions_df.to_string() if not transactions_df.empty else "No transactions yet"
         
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
                     # Process the chat message
-                    response = gpt_processor.process_chat_message(prompt, transactions_context)
+                    response = gpt_processor.process_chat_message(prompt, transactions_df)
                     
                     # Display the response
                     st.write(response['message'])
@@ -88,7 +87,7 @@ if input_method == "Chat Assistant":
                                     # Clear the pending action and chat history to refresh the context
                                     st.session_state.pending_action = None
                                     # Force refresh to show updated data
-                                    st.experimental_rerun()  # Using experimental_rerun for more reliable refresh
+                                    st.experimental_rerun()
                                 else:
                                     st.error("Failed to apply changes. Please try again.")
                             except Exception as e:
@@ -121,7 +120,7 @@ with col1:
     df = transaction_manager.get_transactions_df()
     if not df.empty:
         st.dataframe(
-            df[['date', 'type', 'description', 'amount']],
+            df[['row', 'date', 'type', 'description', 'amount']],
             hide_index=True,
             use_container_width=True
         )
