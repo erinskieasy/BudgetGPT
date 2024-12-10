@@ -63,6 +63,48 @@ class GPTProcessor:
             "amount": float(result.get('amount', 0))
         }
 
+    def process_chat_message(self, message, transactions_context):
+        """Process a chat message about transactions and determine appropriate actions."""
+        prompt = f"""
+        You are a helpful financial assistant. Help the user manage their transactions.
+        The user is chatting with you about their transactions. Below are the current transactions:
+
+        {transactions_context}
+
+        User message: "{message}"
+
+        Analyze the user's message and:
+        1. If they're asking about transactions, provide helpful information
+        2. If they want to modify transactions, suggest specific changes
+        3. If they want to add new transactions, help format the data
+
+        Return JSON in this format:
+        {{
+            "message": "Your helpful response to the user",
+            "action": null  # Or include command data if a change is needed:
+            # For adding: {{"command": "add", "transaction": {{"date": "YYYY-MM-DD", "type": "expense|income|subscription", "description": "string", "amount": float}}}}
+            # For updating: {{"command": "update", "criteria": {{"date": "YYYY-MM-DD", "description": "string"}}, "updates": {{"date?": "YYYY-MM-DD", "type?": "string", "description?": "string", "amount?": float}}}}
+            # For deleting: {{"command": "delete", "criteria": {{"date": "YYYY-MM-DD", "description": "string"}}}}
+        }}
+        """
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a helpful financial assistant. Be friendly and clear in your responses."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            response_format={"type": "json_object"}
+        )
+        
+        return json.loads(response.choices[0].message.content)
+
     def find_matching_transaction(self, description, transactions):
         """Find the best matching transaction based on semantic similarity."""
         if not transactions:

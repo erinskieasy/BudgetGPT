@@ -21,46 +21,68 @@ st.title("GPT Budget Tracker")
 # Initialize components
 transaction_manager, gpt_processor = init_components()
 
+# Initialize chat history in session state if it doesn't exist
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
+
 # Sidebar for input methods
 st.sidebar.title("Add Transaction")
 input_method = st.sidebar.radio(
     "Choose input method:",
-    ["Text Input", "Receipt Upload"]
+    ["Chat Assistant", "Receipt Upload"]
 )
 
-# Text input section
-if input_method == "Text Input":
-    st.sidebar.subheader("Enter Transaction Details")
-    text_input = st.sidebar.text_area(
-        "Describe your transaction:",
-        placeholder="Example: Spent $45.99 at Grocery Store yesterday"
-    )
-    
-    # Handle Enter key submission
-    if text_input:
-        process_input = st.sidebar.button("Process Transaction") or bool(
-            text_input and text_input.strip() and "\n" in text_input
+# Chat interface section
+if input_method == "Chat Assistant":
+    # Display current transactions
+    st.subheader("Current Transactions")
+    df = transaction_manager.get_transactions_df()
+    if not df.empty:
+        st.dataframe(
+            df[['date', 'type', 'description', 'amount']],
+            hide_index=True,
+            use_container_width=True
         )
-        
-        if process_input:
-            with st.spinner("Processing command..."):
-                try:
-                    command_data = gpt_processor.process_text_input(text_input.replace("\n", ""))
-                    transaction_manager.process_command(command_data)
-                    
-                    if command_data['command'] == 'add':
-                        st.sidebar.success("Transaction added successfully!")
-                    elif command_data['command'] == 'delete':
-                        st.sidebar.success("Transaction deleted successfully!")
-                    else:  # update
-                        st.sidebar.success("Transaction updated successfully!")
-                        
-                    # Clear the input after successful processing
-                    st.session_state.text_input = ""
-                except Exception as e:
-                    st.sidebar.error(f"Error processing command: {str(e)}")
     else:
-        st.sidebar.warning("Please enter a transaction or command")
+        st.info("No transactions recorded yet")
+
+    # Display chat history
+    st.subheader("Chat with GPT Assistant")
+    for message in st.session_state.chat_history:
+        with st.chat_message(message["role"]):
+            st.write(message["content"])
+
+    # Chat input
+    if prompt := st.chat_input("Chat about your transactions..."):
+        # Add user message to chat history
+        st.session_state.chat_history.append({"role": "user", "content": prompt})
+        
+        # Get current transactions for context
+        transactions_df = transaction_manager.get_transactions_df()
+        transactions_context = transactions_df.to_string() if not transactions_df.empty else "No transactions yet"
+        
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                try:
+                    # Process the chat message
+                    response = gpt_processor.process_chat_message(prompt, transactions_context)
+                    
+                    # Display the response
+                    st.write(response['message'])
+                    
+                    # If there's a suggested action, ask for confirmation
+                    if 'action' in response and response['action']:
+                        if st.button("Apply this change?"):
+                            transaction_manager.process_command(response['action'])
+                            st.success("Changes applied successfully!")
+                    
+                    # Add assistant's response to chat history
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": response['message']
+                    })
+                except Exception as e:
+                    st.error(f"Error: {str(e)}")
 
 # Receipt upload section
 else:
