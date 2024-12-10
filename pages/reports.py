@@ -120,27 +120,88 @@ if not df.empty:
     monthly_stats = df.copy()
     monthly_stats['month'] = pd.to_datetime(monthly_stats['date']).dt.strftime('%Y-%m')
     
-    # Create monthly statistics with simpler aggregation
+    # Create monthly statistics with enhanced metrics
+    monthly_grouped = monthly_stats.groupby('month')
     stats_table = pd.DataFrame({
         'month': sorted(monthly_stats['month'].unique()),
-        'Transaction Count': monthly_stats.groupby('month').size(),
-        'Total Amount': monthly_stats.groupby('month')['amount'].sum().round(2),
-        'Average Amount': monthly_stats.groupby('month')['amount'].mean().round(2)
+        'Transaction Count': monthly_grouped.size(),
+        'Total Amount': monthly_grouped['amount'].sum().round(2),
+        'Average Amount': monthly_grouped['amount'].mean().round(2),
+        'Highest Transaction': monthly_grouped['amount'].max().round(2),
+        'Lowest Transaction': monthly_grouped['amount'].min().round(2)
     })
     
-    # Display the statistics
-    st.dataframe(stats_table, use_container_width=True)
+    # Calculate month-over-month changes
+    stats_table['MoM Change'] = stats_table['Total Amount'].pct_change().round(3) * 100
+    stats_table['MoM Change'] = stats_table['MoM Change'].map('{:+.1f}%'.format)
     
-    # Separate transaction type analysis
-    st.subheader("Transaction Types by Month")
-    type_by_month = df.pivot_table(
-        index=pd.to_datetime(df['date']).dt.strftime('%Y-%m'),
+    # Display the enhanced statistics
+    st.dataframe(stats_table.style.format({
+        'Total Amount': '${:,.2f}'.format,
+        'Average Amount': '${:,.2f}'.format,
+        'Highest Transaction': '${:,.2f}'.format,
+        'Lowest Transaction': '${:,.2f}'.format
+    }), use_container_width=True)
+    
+    # Spending Trends by Transaction Type
+    st.subheader("Spending Trends by Type")
+    type_trends = df.copy()
+    type_trends['month'] = pd.to_datetime(type_trends['date']).dt.strftime('%Y-%m')
+    type_by_month = type_trends.pivot_table(
+        index='month',
         columns='type',
         values='amount',
-        aggfunc='count',
+        aggfunc='sum',
         fill_value=0
     ).reset_index()
-    st.dataframe(type_by_month, use_container_width=True)
+    
+    # Create stacked area chart for spending trends
+    fig_trends = go.Figure()
+    for col in type_by_month.columns[1:]:  # Skip 'month' column
+        fig_trends.add_trace(go.Scatter(
+            x=type_by_month['month'],
+            y=type_by_month[col],
+            name=col.capitalize(),
+            stackgroup='one',
+            mode='lines',
+            line=dict(width=0.5),
+            hovertemplate="%{y:$.2f}<extra></extra>"
+        ))
+    
+    fig_trends.update_layout(
+        title='Monthly Spending by Transaction Type',
+        xaxis_title='Month',
+        yaxis_title='Amount ($)',
+        hovermode='x unified',
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    )
+    st.plotly_chart(fig_trends, use_container_width=True)
+    
+    # Detailed Type Distribution Analysis
+    st.subheader("Transaction Type Analysis")
+    type_analysis = pd.DataFrame({
+        'Type': df['type'].unique(),
+        'Count': df['type'].value_counts(),
+        'Total Amount': df.groupby('type')['amount'].sum().round(2),
+        'Average Amount': df.groupby('type')['amount'].mean().round(2),
+        'Percentage': (df['type'].value_counts() / len(df) * 100).round(1)
+    })
+    
+    # Format the analysis table
+    type_analysis['Percentage'] = type_analysis['Percentage'].map('{:.1f}%'.format)
+    type_analysis = type_analysis.sort_values('Total Amount', ascending=False)
+    
+    st.dataframe(type_analysis.style.format({
+        'Total Amount': '${:,.2f}'.format,
+        'Average Amount': '${:,.2f}'.format
+    }), use_container_width=True)
 
 else:
     st.info("No transaction data available for analysis")
