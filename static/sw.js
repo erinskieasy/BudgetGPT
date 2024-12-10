@@ -1,10 +1,10 @@
 // Service Worker for GPT Budget Tracker
-const CACHE_NAME = 'gpt-budget-tracker-v3';
+const CACHE_NAME = 'gpt-budget-tracker-v4';
 const urlsToCache = [
-  '.',
-  './static/manifest.json',
-  './static/icon-192.png',
-  './static/icon-512.png'
+  '/',
+  '/static/manifest.json',
+  '/static/icon-192.png',
+  '/static/icon-512.png'
 ];
 
 // Install event - cache static assets
