@@ -67,7 +67,6 @@ class Database:
                 AND description ILIKE %s
                 RETURNING id;
             """, (date, date, f"%{description}%"))
-            self.conn.commit()
             deleted = cur.fetchone()
             if not deleted:
                 # Check if the transaction exists at all
@@ -78,6 +77,7 @@ class Database:
                     );
                 """, (f"%{description}%",))
                 exists = cur.fetchone()[0]
+                self.conn.commit()
                 if exists:
                     raise ValueError(f"Found transaction with description '{description}' but date doesn't match. Try being more specific.")
                 else:

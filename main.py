@@ -70,17 +70,29 @@ if input_method == "Chat Assistant":
                     # Display the response
                     st.write(response['message'])
                     
-                    # If there's a suggested action, ask for confirmation
-                    if 'action' in response and response['action']:
-                        if st.button("Apply this change?"):
-                            transaction_manager.process_command(response['action'])
-                            st.success("Changes applied successfully!")
-                    
                     # Add assistant's response to chat history
                     st.session_state.chat_history.append({
                         "role": "assistant",
                         "content": response['message']
                     })
+                    
+                    # If there's a suggested action, ask for confirmation
+                    if 'action' in response and response['action']:
+                        # Store the action in session state
+                        st.session_state.pending_action = response['action']
+                        if st.button("Apply this change?"):
+                            try:
+                                # Process the command
+                                if transaction_manager.process_command(st.session_state.pending_action):
+                                    st.success("Changes applied successfully!")
+                                    # Clear the pending action and chat history to refresh the context
+                                    st.session_state.pending_action = None
+                                    # Force refresh to show updated data
+                                    st.experimental_rerun()  # Using experimental_rerun for more reliable refresh
+                                else:
+                                    st.error("Failed to apply changes. Please try again.")
+                            except Exception as e:
+                                st.error(f"Failed to apply changes: {str(e)}")
                 except Exception as e:
                     st.error(f"Error: {str(e)}")
 

@@ -23,14 +23,19 @@ class TransactionManager:
                 sql_command = self.gpt.generate_sql_command(command_data, transactions_context)
                 
                 # Execute the SQL command
-                with self.db.conn.cursor() as cur:
-                    cur.execute(sql_command['sql'], tuple(sql_command['params']))
-                    affected = cur.rowcount
-                    self.db.conn.commit()
-                    
-                    if affected == 0:
-                        raise ValueError("No matching transaction found. Please be more specific.")
-                    return True
+                try:
+                    with self.db.conn.cursor() as cur:
+                        cur.execute(sql_command['sql'], tuple(sql_command['params']))
+                        affected = cur.rowcount
+                        if affected == 0:
+                            raise ValueError("No matching transaction found. Please be more specific.")
+                        self.db.conn.commit()
+                        print(f"Successfully executed {sql_command['type']} command. Affected rows: {affected}")
+                        return True
+                except Exception as e:
+                    self.db.conn.rollback()
+                    print(f"Error executing SQL command: {str(e)}")
+                    raise ValueError(f"Failed to execute transaction: {str(e)}")
             
             else:
                 raise ValueError(f"Unknown command: {command}")
