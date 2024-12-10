@@ -1,5 +1,5 @@
+
 from PIL import Image, ImageDraw
-import os
 
 def generate_pwa_icon(size):
     # Create a new image with a white background
@@ -13,11 +13,8 @@ def generate_pwa_icon(size):
     
     return image
 
-# Create static directory if it doesn't exist
-os.makedirs('static', exist_ok=True)
-
-# Generate icons
+# Generate icons in required sizes
 sizes = [192, 512]
 for size in sizes:
     icon = generate_pwa_icon(size)
-    icon.save(f'static/icon-{size}.png')
+    icon.save(f'generated-icon-{size}.png')

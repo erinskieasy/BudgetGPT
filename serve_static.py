@@ -17,9 +17,10 @@ def serve_static_files():
     shutil.copy2('manifest.json', streamlit_static / 'manifest.json')
     shutil.copy2('sw.js', streamlit_static / 'sw.js')
     
-    # Copy icon
-    icon_path = Path('generated-icon.png')
-    if icon_path.exists():
-        shutil.copy2(icon_path, streamlit_static / 'generated-icon.png')
-    else:
-        st.error('Icon file missing - PWA installation will not work')
+    # Copy icons
+    for size in [192, 512]:
+        icon_path = Path(f'generated-icon-{size}.png')
+        if icon_path.exists():
+            shutil.copy2(icon_path, streamlit_static / f'generated-icon-{size}.png')
+        else:
+            st.error(f'Icon file missing - generated-icon-{size}.png')
