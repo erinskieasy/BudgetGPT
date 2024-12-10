@@ -45,7 +45,7 @@ st.markdown(pwa_code, unsafe_allow_html=True)
 
 # Application header
 st.markdown("""
-    <h1 style='text-align: center; padding: 1rem 0; background-color: #f0f2f6; margin: -4rem -4rem 2rem -4rem;'>
+    <h1 style='display: inline-block; font-size: 1.5rem; margin-left: 3rem; margin-bottom: 1rem;'>
         GPT Budget Tracker
     </h1>
 """, unsafe_allow_html=True)
