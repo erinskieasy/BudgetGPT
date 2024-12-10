@@ -9,25 +9,67 @@ class TransactionManager:
     def process_command(self, command_data):
         """
         Process a command by routing it to the appropriate function.
-        GPT should analyze the command and call the specific function directly with the correct parameters.
+        Available commands:
+        
+        1. add_transaction:
+           Input: {
+               "command": "add",
+               "transaction": {
+                   "date": "YYYY-MM-DD",
+                   "type": "expense|income|subscription",
+                   "description": "string",
+                   "amount": float
+               }
+           }
+           
+        2. delete_transaction:
+           Input: {
+               "command": "delete",
+               "row_number": int  # Row number from the displayed table
+           }
+           
+        3. update_transaction:
+           Input: {
+               "command": "update",
+               "row_number": int,  # Row number from the displayed table
+               "updates": {  # Only include fields that need updating
+                   "date": "YYYY-MM-DD",  # optional
+                   "type": "expense|income|subscription",  # optional
+                   "description": "string",  # optional
+                   "amount": float  # optional
+               }
+           }
         """
         try:
             command = command_data.get('command', '').lower()
+            print(f"Processing command: {command} with data: {command_data}")  # Debug log
             
             if command == 'add':
                 transaction = command_data.get('transaction', {})
+                if not all(k in transaction for k in ['date', 'type', 'description', 'amount']):
+                    raise ValueError("Missing required fields in transaction data")
                 return self.add_transaction(transaction)
+                
             elif command == 'delete':
-                return self.delete_transaction_by_row(command_data.get('row_number'))
+                row_number = command_data.get('row_number')
+                if not isinstance(row_number, int) or row_number < 1:
+                    raise ValueError("Invalid row number for delete command")
+                return self.delete_transaction_by_row(row_number)
+                
             elif command == 'update':
-                return self.update_transaction_by_row(
-                    row_number=command_data.get('row_number'),
-                    updates=command_data.get('updates', {})
-                )
+                row_number = command_data.get('row_number')
+                updates = command_data.get('updates', {})
+                if not isinstance(row_number, int) or row_number < 1:
+                    raise ValueError("Invalid row number for update command")
+                if not updates:
+                    raise ValueError("No updates provided")
+                return self.update_transaction_by_row(row_number, updates)
+                
             else:
                 raise ValueError(f"Unknown command: {command}")
                 
         except (ValueError, KeyError) as e:
+            print(f"Error processing command: {str(e)}")  # Debug log
             raise ValueError(f"Invalid command data: {str(e)}")
 
     def delete_transaction_by_row(self, row_number):
