@@ -58,22 +58,19 @@ input_method = st.radio(
 
 # Text input section
 if input_method == "Text Input":
-    text_input = st.text_area(
-        "Describe your transaction:",
+    text_input = st.chat_input(
         placeholder="Example: Spent $45.99 at Grocery Store yesterday or Received $1000 salary payment"
     )
     
-    if st.button("Process Transaction"):
-        if text_input:
-            with st.spinner("Processing transaction..."):
-                try:
-                    transaction_data = gpt_processor.process_text_input(text_input)
-                    transaction_manager.add_transaction(transaction_data)
-                    st.success("Transaction added successfully!")
-                except Exception as e:
-                    st.error(f"Error processing transaction: {str(e)}")
-        else:
-            st.warning("Please enter a transaction description")
+    if text_input:
+        with st.spinner("Processing transaction..."):
+            try:
+                transaction_data = gpt_processor.process_text_input(text_input)
+                transaction_manager.add_transaction(transaction_data)
+                st.success("Transaction added successfully!")
+                st.rerun()  # Refresh to show the new transaction
+            except Exception as e:
+                st.error(f"Error processing transaction: {str(e)}")
 
 # Receipt upload section
 else:
