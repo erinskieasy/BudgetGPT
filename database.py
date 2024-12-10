@@ -36,7 +36,10 @@ class Database:
                 RETURNING id;
             """, (date, type_trans, description, amount))
             self.conn.commit()
-            return cur.fetchone()[0]
+            result = cur.fetchone()
+            if result is None:
+                raise ValueError("Failed to insert transaction")
+            return result[0]
 
     def get_transactions(self):
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -56,7 +59,8 @@ class Database:
                 ), 0) as balance
                 FROM transactions;
             """)
-            return cur.fetchone()[0]
+            result = cur.fetchone()
+            return 0.0 if result is None else float(result[0])
 
     def update_transaction(self, id, field, value):
         """Update a specific field of a transaction."""
