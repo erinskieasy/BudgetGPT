@@ -119,8 +119,17 @@ if input_method == "Text Input":
                 result = gpt_processor.process_text_input(text_input)
                 if isinstance(result, dict) and result.get("action") == "delete":
                     # Handle deletion request
-                    if transaction_manager.delete_transaction(result["transaction_id"]):
-                        st.success(f"Transaction {result['transaction_id']} deleted successfully!")
+                    results = transaction_manager.delete_transactions(result["transaction_ids"])
+                    
+                    # Show results
+                    successful = [r["id"] for r in results if r["success"]]
+                    failed = [(r["id"], r["error"]) for r in results if not r["success"]]
+                    
+                    if successful:
+                        st.success(f"Successfully deleted transactions: {', '.join(map(str, successful))}")
+                    if failed:
+                        st.error("Failed to delete some transactions:\n" + 
+                                "\n".join(f"ID {id}: {error}" for id, error in failed))
                 else:
                     # Handle normal transaction
                     transaction_manager.add_transaction(result)

@@ -14,10 +14,11 @@ class GPTProcessor:
     def process_text_input(self, text):
         # Check if it's a deletion request
         delete_prompt = f"""
-        Determine if this is a request to delete a transaction and extract the ID if it is.
+        Determine if this is a request to delete transactions and extract all transaction IDs mentioned.
         Examples of delete requests:
         - "Delete transaction 1"
-        - "Remove item 5"
+        - "Remove items 5, 7 and 9"
+        - "Delete transactions number 11, 13 and 5"
         - "Delete the first transaction"
         
         Text: {text}
@@ -25,7 +26,7 @@ class GPTProcessor:
         Return JSON in this format:
         {{
             "is_deletion": true/false,
-            "transaction_id": number or null
+            "transaction_ids": [list of numbers] or []
         }}
         """
 
@@ -37,8 +38,8 @@ class GPTProcessor:
         )
         
         delete_result = json.loads(delete_response.choices[0].message.content)
-        if delete_result.get("is_deletion"):
-            return {"action": "delete", "transaction_id": delete_result["transaction_id"]}
+        if delete_result.get("is_deletion") and delete_result.get("transaction_ids"):
+            return {"action": "delete", "transaction_ids": delete_result["transaction_ids"]}
 
         # If not a deletion request, process as normal transaction
         prompt = f"""

@@ -49,7 +49,7 @@ class TransactionManager:
             raise ValueError(f"Invalid {field} value: {str(e)}")
 
     def delete_transaction(self, transaction_id):
-        """Delete a transaction by ID."""
+        """Delete a single transaction by ID."""
         try:
             transaction_id = int(transaction_id)
             if self.db.delete_transaction(transaction_id):
@@ -57,6 +57,19 @@ class TransactionManager:
             raise ValueError(f"Transaction {transaction_id} not found")
         except (ValueError, TypeError) as e:
             raise ValueError(f"Invalid transaction ID: {str(e)}")
+    
+    def delete_transactions(self, transaction_ids):
+        """Delete multiple transactions by their IDs."""
+        results = []
+        for tid in transaction_ids:
+            try:
+                if self.delete_transaction(tid):
+                    results.append({"id": tid, "success": True})
+                else:
+                    results.append({"id": tid, "success": False, "error": "Transaction not found"})
+            except ValueError as e:
+                results.append({"id": tid, "success": False, "error": str(e)})
+        return results
 
     def get_summary_stats(self):
         df = self.get_transactions_df()
