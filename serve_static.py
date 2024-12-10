@@ -14,7 +14,7 @@ def serve_static_files():
     static_dir.mkdir(exist_ok=True)
     
     # Copy PWA files
-    shutil.copy2(static_dir / 'manifest.json', streamlit_static / 'manifest.json')
+    shutil.copy2('manifest.json', streamlit_static / 'manifest.json')
     shutil.copy2(static_dir / 'sw.js', streamlit_static / 'sw.js')
     
     # Copy icon
