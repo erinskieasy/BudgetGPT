@@ -7,6 +7,7 @@ from datetime import datetime
 from database import Database
 from gpt_processor import GPTProcessor
 from transaction_manager import TransactionManager
+from serve_static import serve_static_files
 
 # Initialize application components
 @st.cache_resource
@@ -15,14 +16,18 @@ def init_components():
     gpt = GPTProcessor()
     return TransactionManager(db), gpt
 
-# Page configuration
+# Page configuration and PWA setup
 st.set_page_config(page_title="GPT Budget Tracker", layout="wide")
+
+# Serve static files for PWA
+serve_static_files()
 
 # Inject PWA components
 pwa_code = """
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#000000">
     <link rel="apple-touch-icon" href="/static/generated-icon.png">
+    <link rel="icon" type="image/png" href="/static/generated-icon.png">
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
