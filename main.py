@@ -43,12 +43,7 @@ pwa_code = """
 """
 st.markdown(pwa_code, unsafe_allow_html=True)
 
-# Application header
-st.markdown("""
-    <h1 style='text-align: center; padding: 1rem 0; background-color: #f0f2f6; margin: -4rem -4rem 2rem -4rem;'>
-        GPT Budget Tracker
-    </h1>
-""", unsafe_allow_html=True)
+st.title("GPT Budget Tracker")
 
 # Initialize components
 transaction_manager, gpt_processor = init_components()
@@ -56,11 +51,24 @@ transaction_manager, gpt_processor = init_components()
 # Get financial stats
 stats = transaction_manager.get_summary_stats()
 
-# Transaction history table
+# Transaction history table and export options
 st.subheader("Transaction History")
 df = transaction_manager.get_transactions_df()
 
+# Export buttons
 if not df.empty:
+    col1, col2 = st.columns([1, 6])
+    with col1:
+        # Create a buffer for CSV data
+        csv_buffer = io.StringIO()
+        df.to_csv(csv_buffer, index=False)
+        
+        st.download_button(
+            label="Export CSV",
+            data=csv_buffer.getvalue(),
+            file_name=f"transactions_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
     # Create editable columns
     edited_df = st.data_editor(
         df,
