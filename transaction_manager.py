@@ -39,7 +39,10 @@ class TransactionManager:
             elif field == 'amount':
                 value = float(value)
             elif field == 'date':
-                value = datetime.strptime(value, '%Y-%m-%d').date()
+                if isinstance(value, str):
+                    value = datetime.strptime(value, '%Y-%m-%d').date()
+                elif not isinstance(value, datetime.date):
+                    raise ValueError("Invalid date format")
             
             return self.db.update_transaction(transaction_id, field, value)
         except (ValueError, TypeError) as e:
