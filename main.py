@@ -101,7 +101,7 @@ with col3:
     st.metric("Total Subscriptions", f"${stats['total_subscriptions']:.2f}")
 
 # Input section below transaction table
-st.subheader("Add Transaction")
+# st.subheader("Add Transaction")
 input_method = st.radio(
     "Choose input method:",
     ["Text Input", "Receipt Upload"]
@@ -110,18 +110,24 @@ input_method = st.radio(
 # Text input section
 if input_method == "Text Input":
     text_input = st.chat_input(
-        placeholder="Example: Spent $45.99 at Grocery Store yesterday or Received $1000 salary payment"
+        placeholder="What did you buy?"
     )
     
     if text_input:
-        with st.spinner("Processing transaction..."):
+        with st.spinner("Processing input..."):
             try:
-                transaction_data = gpt_processor.process_text_input(text_input)
-                transaction_manager.add_transaction(transaction_data)
-                st.success("Transaction added successfully!")
-                st.rerun()  # Refresh to show the new transaction
+                result = gpt_processor.process_text_input(text_input)
+                if isinstance(result, dict) and result.get("action") == "delete":
+                    # Handle deletion request
+                    if transaction_manager.delete_transaction(result["transaction_id"]):
+                        st.success(f"Transaction {result['transaction_id']} deleted successfully!")
+                else:
+                    # Handle normal transaction
+                    transaction_manager.add_transaction(result)
+                    st.success("Transaction added successfully!")
+                st.rerun()  # Refresh to show the updated transactions
             except Exception as e:
-                st.error(f"Error processing transaction: {str(e)}")
+                st.error(f"Error processing input: {str(e)}")
 
 # Receipt upload section
 else:

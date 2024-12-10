@@ -12,6 +12,35 @@ class GPTProcessor:
         self.model = "gpt-4o"
 
     def process_text_input(self, text):
+        # Check if it's a deletion request
+        delete_prompt = f"""
+        Determine if this is a request to delete a transaction and extract the ID if it is.
+        Examples of delete requests:
+        - "Delete transaction 1"
+        - "Remove item 5"
+        - "Delete the first transaction"
+        
+        Text: {text}
+        
+        Return JSON in this format:
+        {{
+            "is_deletion": true/false,
+            "transaction_id": number or null
+        }}
+        """
+
+        # First check if it's a deletion request
+        delete_response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": delete_prompt}],
+            response_format={"type": "json_object"}
+        )
+        
+        delete_result = json.loads(delete_response.choices[0].message.content)
+        if delete_result.get("is_deletion"):
+            return {"action": "delete", "transaction_id": delete_result["transaction_id"]}
+
+        # If not a deletion request, process as normal transaction
         prompt = f"""
         Extract the following information from this transaction description and return as JSON:
         1. date (in YYYY-MM-DD format, use today if not specified)
