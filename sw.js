@@ -4,7 +4,8 @@ const CACHE_NAME = 'gpt-budget-tracker-v3';
 const urlsToCache = [
   '/',
   '/manifest.json',
-  '/generated-icon.png',
+  '/generated-icon-192.png',
+  '/generated-icon-512.png',
   '/sw.js'
 ];
 
