@@ -46,15 +46,16 @@ class Database:
             """)
             return cur.fetchall()
 
-    def get_transactions_for_matching(self, date, days_range=7):
+    def get_transactions_for_matching(self, date, days_range=30):
         """Get transactions within a date range for matching."""
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # First try to find exact matches
             cur.execute("""
                 SELECT * FROM transactions 
-                WHERE date BETWEEN %s::date - INTERVAL '%s days' 
-                AND %s::date + INTERVAL '%s days'
-                ORDER BY date DESC, created_at DESC;
-            """, (date, days_range, date, days_range))
+                ORDER BY 
+                    ABS(EXTRACT(EPOCH FROM (date - %s::date))),
+                    created_at DESC;
+            """, (date,))
             return cur.fetchall()
 
 

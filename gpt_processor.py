@@ -76,27 +76,28 @@ class GPTProcessor:
         print(f"Processing transactions list:\n{transactions_list}")
         
         prompt = f"""
-        You are a semantic matching expert. Given a user's description of a transaction,
-        find the most semantically similar transaction from the available list.
-        Be lenient with matching - focus on core concepts rather than exact wording.
+        You are a semantic matching expert with expertise in financial transactions.
+        Find the most semantically similar transaction from the list based on meaning,
+        not exact wording. Be very lenient with matching.
 
-        User's description: "{description}"
+        User's search: "{description}"
 
-        Available transactions (date | description | amount):
+        Available transactions to search through:
         {transactions_list}
 
-        Consider these matching rules:
-        1. Focus on core concepts and semantic meaning, not exact text matching
-        2. Common variations to match:
-           - "gas purchase" = "bought gas" = "filled up gas tank" = "gas station" = "fuel"
-           - "grocery" = "groceries" = "food shopping" = "supermarket"
-           - "coffee" = "starbucks" = "cafe" = "coffee shop"
-        3. Ignore minor differences in wording or phrasing
-        4. Consider partial matches if they capture the main concept
-        5. Match confidence levels:
-           - High (0.8-1.0): Clear semantic match or obvious similarity
-           - Medium (0.5-0.7): Related concepts or partial matches
-           - Low (0.3-0.4): Possible but uncertain matches
+        Matching rules (BE VERY LENIENT):
+        1. Prioritize semantic meaning over exact words
+        2. Common equivalent expressions:
+           - Any mention of "gas", "fuel", "gasoline", "fill up", "station" are related to gas purchases
+           - Words like "bought", "purchased", "paid for", "got" are equivalent
+           - Numbers and amounts don't need to match
+        3. Focus on the core concept (e.g., "gas purchase" = "bought gas")
+        4. Word order and exact phrasing don't matter
+        5. Confidence scoring (BE GENEROUS):
+           - High (0.7-1.0): Core concept matches (e.g., both about gas)
+           - Medium (0.4-0.6): Related concepts
+           - Low (0.2-0.3): Possible but uncertain relation
+           - Zero (0.0): Completely unrelated
 
         Return JSON in this format:
         {{
