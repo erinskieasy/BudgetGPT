@@ -5,6 +5,43 @@ class TransactionManager:
     def __init__(self, database):
         self.db = database
 
+    def process_command(self, command_data):
+        try:
+            command = command_data.get('command', '').lower()
+            
+            if command == 'add':
+                transaction = command_data.get('transaction', {})
+                return self.add_transaction(transaction)
+            
+            elif command in ['delete', 'update']:
+                criteria = command_data.get('criteria', {})
+                if not criteria:
+                    raise ValueError("No criteria provided for modification")
+                
+                date = datetime.strptime(criteria['date'], '%Y-%m-%d').date()
+                description = criteria['description']
+                
+                if command == 'delete':
+                    success = self.db.delete_transaction(date, description)
+                    if not success:
+                        raise ValueError("No matching transaction found")
+                    return True
+                
+                else:  # update
+                    updates = command_data.get('updates', {})
+                    if 'date' in updates:
+                        updates['date'] = datetime.strptime(updates['date'], '%Y-%m-%d').date()
+                    success = self.db.update_transaction(date, description, updates)
+                    if not success:
+                        raise ValueError("No matching transaction found")
+                    return True
+            
+            else:
+                raise ValueError(f"Unknown command: {command}")
+                
+        except (ValueError, KeyError) as e:
+            raise ValueError(f"Invalid command data: {str(e)}")
+
     def add_transaction(self, transaction_data):
         # Validate and process the transaction data
         try:

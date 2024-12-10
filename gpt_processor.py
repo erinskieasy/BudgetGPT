@@ -13,21 +13,42 @@ class GPTProcessor:
 
     def process_text_input(self, text):
         prompt = f"""
-        Extract the following information from this transaction description and return as JSON:
-        1. date (in YYYY-MM-DD format, use today if not specified)
-        2. type (either 'income', 'expense', or 'subscription')
-        3. description (a clear, concise summary)
-        4. amount (numerical value)
+        Analyze the input text and determine if it's a new transaction or a modification command.
+        If it's a modification command (delete/update), return a command object.
+        If it's a new transaction, extract the transaction details.
 
-        Transaction text: {text}
+        Input text: {text}
 
-        Response format:
+        For new transactions, return JSON in this format:
         {{
-            "date": "YYYY-MM-DD",
-            "type": "expense/subscription",
-            "description": "summary",
-            "amount": float
+            "command": "add",
+            "transaction": {{
+                "date": "YYYY-MM-DD",
+                "type": "income/expense/subscription",
+                "description": "summary",
+                "amount": float
+            }}
         }}
+
+        For modification commands, return JSON in this format:
+        {{
+            "command": "delete/update",
+            "criteria": {{
+                "date": "YYYY-MM-DD",  # Date of transaction to modify
+                "description": "search terms"  # Keywords to identify transaction
+            }},
+            "updates": {{  # Only for update command
+                "date": "YYYY-MM-DD",  # New date if changing date
+                "type": "income/expense/subscription",  # New type if changing type
+                "description": "new description",  # New description if changing description
+                "amount": float  # New amount if changing amount
+            }}
+        }}
+
+        Example modifications:
+        - "Delete the grocery transaction from yesterday"
+        - "Change the date of my coffee expense to last Friday"
+        - "Update the type of my salary entry to income"
         """
 
         response = self.client.chat.completions.create(

@@ -46,6 +46,48 @@ class Database:
             """)
             return cur.fetchall()
 
+    def delete_transaction(self, date, description):
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                DELETE FROM transactions
+                WHERE date = %s AND description ILIKE %s
+                RETURNING id;
+            """, (date, f"%{description}%"))
+            self.conn.commit()
+            return cur.fetchone() is not None
+
+    def update_transaction(self, date, description, updates):
+        update_fields = []
+        update_values = []
+        
+        if 'date' in updates:
+            update_fields.append("date = %s")
+            update_values.append(updates['date'])
+        if 'type' in updates:
+            update_fields.append("type = %s")
+            update_values.append(updates['type'])
+        if 'description' in updates:
+            update_fields.append("description = %s")
+            update_values.append(updates['description'])
+        if 'amount' in updates:
+            update_fields.append("amount = %s")
+            update_values.append(updates['amount'])
+            
+        if not update_fields:
+            return False
+            
+        update_values.extend([date, f"%{description}%"])
+        
+        with self.conn.cursor() as cur:
+            cur.execute(f"""
+                UPDATE transactions
+                SET {", ".join(update_fields)}
+                WHERE date = %s AND description ILIKE %s
+                RETURNING id;
+            """, tuple(update_values))
+            self.conn.commit()
+            return cur.fetchone() is not None
+
     def get_balance(self):
         with self.conn.cursor() as cur:
             cur.execute("""

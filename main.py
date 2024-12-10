@@ -36,17 +36,31 @@ if input_method == "Text Input":
         placeholder="Example: Spent $45.99 at Grocery Store yesterday"
     )
     
-    if st.sidebar.button("Process Transaction"):
-        if text_input:
-            with st.spinner("Processing transaction..."):
+    # Handle Enter key submission
+    if text_input:
+        process_input = st.sidebar.button("Process Transaction") or bool(
+            text_input and text_input.strip() and "\n" in text_input
+        )
+        
+        if process_input:
+            with st.spinner("Processing command..."):
                 try:
-                    transaction_data = gpt_processor.process_text_input(text_input)
-                    transaction_manager.add_transaction(transaction_data)
-                    st.sidebar.success("Transaction added successfully!")
+                    command_data = gpt_processor.process_text_input(text_input.replace("\n", ""))
+                    transaction_manager.process_command(command_data)
+                    
+                    if command_data['command'] == 'add':
+                        st.sidebar.success("Transaction added successfully!")
+                    elif command_data['command'] == 'delete':
+                        st.sidebar.success("Transaction deleted successfully!")
+                    else:  # update
+                        st.sidebar.success("Transaction updated successfully!")
+                        
+                    # Clear the input after successful processing
+                    st.session_state.text_input = ""
                 except Exception as e:
-                    st.sidebar.error(f"Error processing transaction: {str(e)}")
-        else:
-            st.sidebar.warning("Please enter a transaction description")
+                    st.sidebar.error(f"Error processing command: {str(e)}")
+    else:
+        st.sidebar.warning("Please enter a transaction or command")
 
 # Receipt upload section
 else:
