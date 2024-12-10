@@ -15,7 +15,7 @@ class GPTProcessor:
         prompt = f"""
         Extract the following information from this transaction description and return as JSON:
         1. date (in YYYY-MM-DD format, use today if not specified)
-        2. type (either 'expense' or 'subscription')
+        2. type (either 'income', 'expense', or 'subscription')
         3. description (a clear, concise summary)
         4. amount (numerical value)
 

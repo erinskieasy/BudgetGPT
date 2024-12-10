@@ -14,7 +14,7 @@ class TransactionManager:
             description = transaction_data['description']
 
             # Validate transaction type
-            if type_trans not in ['expense', 'subscription']:
+            if type_trans not in ['expense', 'subscription', 'income']:
                 raise ValueError("Invalid transaction type")
 
             # Add to database
