@@ -46,6 +46,18 @@ class Database:
             """)
             return cur.fetchall()
 
+    def get_transactions_for_matching(self, date, days_range=7):
+        """Get transactions within a date range for matching."""
+        with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT * FROM transactions 
+                WHERE date BETWEEN %s::date - INTERVAL '%s days' 
+                AND %s::date + INTERVAL '%s days'
+                ORDER BY date DESC, created_at DESC;
+            """, (date, days_range, date, days_range))
+            return cur.fetchall()
+
+
     def delete_transaction(self, date, description):
         with self.conn.cursor() as cur:
             # Use a date range of ±1 day to be more flexible

@@ -12,7 +12,7 @@ from transaction_manager import TransactionManager
 def init_components():
     db = Database()
     gpt = GPTProcessor()
-    return TransactionManager(db), gpt
+    return TransactionManager(db, gpt), gpt
 
 # Page configuration
 st.set_page_config(page_title="GPT Budget Tracker", layout="wide")

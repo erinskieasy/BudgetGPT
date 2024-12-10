@@ -1,55 +1,28 @@
-import base64
 import json
+import os
 from datetime import datetime
 from openai import OpenAI
-import os
 
+# the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
+# do not change this unless explicitly requested by the user
 class GPTProcessor:
     def __init__(self):
-        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-        # do not change this unless explicitly requested by the user
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.model = "gpt-4o"
 
     def process_text_input(self, text):
+        """Process natural language input into structured transaction data."""
         prompt = f"""
-        Analyze the input text and determine if it's a new transaction or a modification command.
-        If it's a modification command (delete/update), return a command object.
-        If it's a new transaction, extract the transaction details.
-        Use today's date ({datetime.now().strftime('%Y-%m-%d')}) if no specific date is mentioned.
-
-        Input text: {text}
-
-        For new transactions, return JSON in this format:
-        {{
-            "command": "add",
-            "transaction": {{
-                "date": "YYYY-MM-DD",  # Use today's date if not specified
-                "type": "income/expense/subscription",
-                "description": "summary",
-                "amount": float
-            }}
-        }}
-
-        For modification commands, return JSON in this format:
-        {{
-            "command": "delete/update",
-            "criteria": {{
-                "date": "YYYY-MM-DD",  # Use today's date if not specified
-                "description": "search terms"  # Keywords to identify transaction
-            }},
-            "updates": {{  # Only for update command
-                "date": "YYYY-MM-DD",  # Optional, include only if changing date
-                "type": "income/expense/subscription",  # Optional, include only if changing type
-                "description": "new description",  # Optional, include only if changing description
-                "amount": float  # Optional, include only if changing amount
-            }}
-        }}
-
-        Example modifications:
-        - "Delete the grocery transaction from today" -> Use today's date
-        - "Change my coffee expense to subscription" -> Use today's date, only include type in updates
-        - "Update the amount of lunch to 15.99" -> Use today's date, only include amount in updates
+        Convert this transaction-related text into a structured command.
+        Text: "{text}"
+        
+        Return JSON in this format for add/update/delete commands:
+        For adding: {{"command": "add", "transaction": {{"date": "YYYY-MM-DD", "type": "expense|income|subscription", "description": "string", "amount": float}}}}
+        For updating: {{"command": "update", "criteria": {{"date": "YYYY-MM-DD", "description": "search text"}}, "updates": {{"date?": "YYYY-MM-DD", "type?": "string", "description?": "string", "amount?": float}}}}
+        For deleting: {{"command": "delete", "criteria": {{"date": "YYYY-MM-DD", "description": "search text"}}}}
+        
+        Current date if needed: {datetime.now().strftime('%Y-%m-%d')}
+        Use semantic understanding to determine the command type and extract relevant details.
         """
 
         response = self.client.chat.completions.create(
@@ -60,41 +33,71 @@ class GPTProcessor:
         
         return json.loads(response.choices[0].message.content)
 
-    def process_receipt_image(self, image_data):
-        # Convert the image data to base64
-        base64_image = base64.b64encode(image_data).decode('utf-8')
-        
-        prompt = """
-        Extract the following information from this receipt image and return as JSON:
-        1. date (in YYYY-MM-DD format)
-        2. type (always 'expense' for receipts)
-        3. description (main items or store name)
-        4. amount (total amount)
-
-        Return format:
-        {
-            "date": "YYYY-MM-DD",
-            "type": "expense",
-            "description": "summary",
-            "amount": float
-        }
-        """
-
+    def process_receipt_image(self, image_bytes):
+        """Process an uploaded receipt image and extract transaction details."""
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": prompt},
+                        {
+                            "type": "text",
+                            "text": "Extract transaction details from this receipt image. Include total amount, date, and merchant/description."
+                        },
                         {
                             "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_bytes}"}
                         }
                     ]
                 }
             ],
             response_format={"type": "json_object"}
         )
+        
+        result = json.loads(response.choices[0].message.content)
+        return {
+            "date": datetime.now().strftime('%Y-%m-%d'),  # Default to today if not found
+            "type": "expense",
+            "description": result.get('merchant', 'Receipt purchase'),
+            "amount": float(result.get('amount', 0))
+        }
 
-        return json.loads(response.choices[0].message.content)
+    def find_matching_transaction(self, description, transactions):
+        """Find the best matching transaction based on semantic similarity."""
+        if not transactions:
+            return None
+            
+        transactions_list = "\n".join(
+            f"{t['date']} | {t['description']} | ${float(t['amount']):.2f}"
+            for t in transactions
+        )
+        
+        prompt = f"""
+        Find the best matching transaction from the list based on this description: "{description}"
+
+        Available transactions (format: date | description | amount):
+        {transactions_list}
+
+        Return JSON in this format:
+        {{
+            "best_match": {{
+                "date": "YYYY-MM-DD",
+                "description": "exact description from the list",
+                "confidence": float  # between 0 and 1
+            }}
+        }}
+        
+        If no reasonable match is found, set confidence to 0.
+        A match is reasonable if the descriptions are semantically similar
+        (e.g., "gas purchase" matches "Bought gas" or "Filled up gas tank").
+        """
+
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"}
+        )
+        
+        result = json.loads(response.choices[0].message.content)
+        return result['best_match']

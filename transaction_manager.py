@@ -2,8 +2,9 @@ from datetime import datetime
 import pandas as pd
 
 class TransactionManager:
-    def __init__(self, database):
+    def __init__(self, database, gpt_processor=None):
         self.db = database
+        self.gpt = gpt_processor
 
     def process_command(self, command_data):
         try:
@@ -28,14 +29,25 @@ class TransactionManager:
                 if not description:
                     raise ValueError("No description provided for finding the transaction")
                 
+                # Get potential matching transactions
+                transactions = self.db.get_transactions_for_matching(date)
+                if not transactions:
+                    raise ValueError("No transactions found in the recent period")
+                
+                # Use GPT to find the best match
+                match = self.gpt.find_matching_transaction(description, transactions)
+                if not match or match['confidence'] < 0.5:  # Confidence threshold
+                    raise ValueError(f"No transaction found that matches '{description}'")
+                
+                # Use the matched transaction's exact description
                 try:
                     if command == 'delete':
-                        return self.db.delete_transaction(date, description)
+                        return self.db.delete_transaction(date, match['description'])
                     else:  # update
                         updates = command_data.get('updates', {})
                         if 'date' in updates:
                             updates['date'] = datetime.strptime(updates['date'], '%Y-%m-%d').date()
-                        return self.db.update_transaction(date, description, updates)
+                        return self.db.update_transaction(date, match['description'], updates)
                 except ValueError as e:
                     raise ValueError(str(e))
             
