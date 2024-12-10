@@ -5,29 +5,20 @@ import shutil
 
 def serve_static_files():
     """Serve static files for PWA functionality"""
-    try:
-        # Get Streamlit's static directory
-        streamlit_static = Path(st.__path__[0]) / 'static'
-        
-        # Create static directory if it doesn't exist
-        static_dir = Path("static")
-        static_dir.mkdir(exist_ok=True)
-        
-        # Generate icons first
-        from generate_icons import generate_pwa_icon
-        for size in [192, 512]:
-            icon = generate_pwa_icon(size)
-            icon_path = static_dir / f"icon-{size}.png"
-            icon.save(icon_path)
-        
-        # Copy static files to Streamlit's static directory
-        static_files = ["manifest.json", "sw.js", "icon-192.png", "icon-512.png"]
-        for file in static_files:
-            src = static_dir / file
-            dst = streamlit_static / file
-            if src.exists():
-                shutil.copy2(src, dst)
-            else:
-                st.error(f"Error: Required PWA file missing: {file}")
-    except Exception as e:
-        st.error("Error setting up PWA functionality. Please try refreshing the page.")
+    # Get Streamlit's static directory
+    streamlit_static = Path(st.__path__[0]) / "static"
+    
+    # Create static directory if it doesn't exist
+    static_dir = Path("static")
+    static_dir.mkdir(exist_ok=True)
+    
+    # Always copy the files to ensure they're up to date
+    shutil.copy2(static_dir / "manifest.json", streamlit_static / "manifest.json")
+    shutil.copy2(static_dir / "sw.js", streamlit_static / "sw.js")
+    
+    # Copy the icon and ensure it exists
+    icon_path = Path("generated-icon.png")
+    if icon_path.exists():
+        shutil.copy2(icon_path, streamlit_static / "generated-icon.png")
+    else:
+        st.error("Icon file not found. Please ensure generated-icon.png exists in the root directory.")
