@@ -29,6 +29,8 @@ stats = transaction_manager.get_summary_stats()
 st.subheader("Transaction History")
 df = transaction_manager.get_transactions_df()
 if not df.empty:
+    # Add delete column
+    df['delete'] = False
     # Create editable columns
     edited_df = st.data_editor(
         df,
