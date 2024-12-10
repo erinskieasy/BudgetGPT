@@ -47,7 +47,7 @@ class GPTProcessor:
         Extract the following information from this transaction description and return as JSON:
         1. date (in YYYY-MM-DD format)
    - If a specific date is mentioned, use that date
-   - If no date is mentioned, use today's date: {current_date}
+   - If no date is mentioned, use date: {current_date}
         2. type (either 'income', 'expense', or 'subscription')
         3. description (a clear, concise summary)
         4. amount (numerical value)
