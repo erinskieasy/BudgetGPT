@@ -161,6 +161,20 @@ class GPTProcessor:
         3. Use ILIKE with wildcards for fuzzy description matching
         4. For updates, only include fields that are actually being modified
         5. Return a single SQL command with proper parameter placeholders (%s)
+        6. For UPDATE commands:
+           - Only update specified fields
+           - Use the SET clause only for modified fields
+           - Include both date and description in WHERE clause
+        7. For DELETE commands:
+           - Always include both date and description in WHERE clause
+        8. For INSERT commands:
+           - Include values for all required fields (date, type, description, amount)
+           - created_at should be handled by database default
+
+        Example formats:
+        UPDATE: UPDATE transactions SET amount = %s WHERE date BETWEEN %s::date - INTERVAL '1 day' AND %s::date + INTERVAL '1 day' AND description ILIKE %s
+        DELETE: DELETE FROM transactions WHERE date BETWEEN %s::date - INTERVAL '1 day' AND %s::date + INTERVAL '1 day' AND description ILIKE %s
+        INSERT: INSERT INTO transactions (date, type, description, amount) VALUES (%s, %s, %s, %s)
 
         Return JSON in this format:
         {{

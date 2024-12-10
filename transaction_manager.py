@@ -24,18 +24,25 @@ class TransactionManager:
                 
                 # Execute the SQL command
                 try:
+                    print(f"Executing SQL command: {sql_command}")  # Debug logging
                     with self.db.conn.cursor() as cur:
-                        cur.execute(sql_command['sql'], tuple(sql_command['params']))
-                        affected = cur.rowcount
-                        if affected == 0:
-                            raise ValueError("No matching transaction found. Please be more specific.")
-                        self.db.conn.commit()
-                        print(f"Successfully executed {sql_command['type']} command. Affected rows: {affected}")
-                        return True
+                        try:
+                            cur.execute(sql_command['sql'], tuple(sql_command['params']))
+                            affected = cur.rowcount
+                            if affected == 0:
+                                raise ValueError("No matching transaction found. Please be more specific.")
+                            self.db.conn.commit()
+                            print(f"Successfully executed {sql_command['type']} command. Affected rows: {affected}")
+                            return True
+                        except Exception as e:
+                            self.db.conn.rollback()
+                            print(f"Database execution error: {str(e)}")
+                            print(f"SQL: {sql_command['sql']}")
+                            print(f"Params: {sql_command['params']}")
+                            raise ValueError(f"Database error: {str(e)}")
                 except Exception as e:
-                    self.db.conn.rollback()
-                    print(f"Error executing SQL command: {str(e)}")
-                    raise ValueError(f"Failed to execute transaction: {str(e)}")
+                    print(f"Transaction processing error: {str(e)}")
+                    raise ValueError(f"Failed to process transaction: {str(e)}")
             
             else:
                 raise ValueError(f"Unknown command: {command}")
