@@ -143,6 +143,37 @@ if not df.empty:
         'Lowest Transaction': '${:,.2f}'.format
     }), use_container_width=True)
     
+    # Monthly transaction type breakdown
+    st.subheader("Monthly Transaction Type Breakdown")
+    type_counts = df.pivot_table(
+        index=pd.to_datetime(df['date']).dt.strftime('%Y-%m'),
+        columns='type',
+        values='amount',
+        aggfunc='count',
+        fill_value=0
+    ).reset_index()
+    
+    type_amounts = df.pivot_table(
+        index=pd.to_datetime(df['date']).dt.strftime('%Y-%m'),
+        columns='type',
+        values='amount',
+        aggfunc='sum',
+        fill_value=0
+    ).reset_index()
+    
+    # Create a combined view
+    type_analysis = pd.DataFrame({
+        'Month': type_counts.iloc[:, 0],
+        'Income Count': type_counts['income'] if 'income' in type_counts else 0,
+        'Income Amount': type_amounts['income'].map('${:,.2f}'.format) if 'income' in type_amounts else '$0.00',
+        'Expense Count': type_counts['expense'] if 'expense' in type_counts else 0,
+        'Expense Amount': type_amounts['expense'].map('${:,.2f}'.format) if 'expense' in type_amounts else '$0.00',
+        'Subscription Count': type_counts['subscription'] if 'subscription' in type_counts else 0,
+        'Subscription Amount': type_amounts['subscription'].map('${:,.2f}'.format) if 'subscription' in type_amounts else '$0.00'
+    })
+    
+    st.dataframe(type_analysis, use_container_width=True)
+    
     # Spending Trends by Transaction Type
     st.subheader("Spending Trends by Type")
     type_trends = df.copy()
