@@ -28,20 +28,16 @@ class TransactionManager:
                 if not description:
                     raise ValueError("No description provided for finding the transaction")
                 
-                if command == 'delete':
-                    success = self.db.delete_transaction(date, description)
-                    if not success:
-                        raise ValueError("No matching transaction found")
-                    return True
-                
-                else:  # update
-                    updates = command_data.get('updates', {})
-                    if 'date' in updates:
-                        updates['date'] = datetime.strptime(updates['date'], '%Y-%m-%d').date()
-                    success = self.db.update_transaction(date, description, updates)
-                    if not success:
-                        raise ValueError("No matching transaction found")
-                    return True
+                try:
+                    if command == 'delete':
+                        return self.db.delete_transaction(date, description)
+                    else:  # update
+                        updates = command_data.get('updates', {})
+                        if 'date' in updates:
+                            updates['date'] = datetime.strptime(updates['date'], '%Y-%m-%d').date()
+                        return self.db.update_transaction(date, description, updates)
+                except ValueError as e:
+                    raise ValueError(str(e))
             
             else:
                 raise ValueError(f"Unknown command: {command}")

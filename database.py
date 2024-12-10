@@ -48,13 +48,29 @@ class Database:
 
     def delete_transaction(self, date, description):
         with self.conn.cursor() as cur:
+            # Use a date range of ±1 day to be more flexible
             cur.execute("""
                 DELETE FROM transactions
-                WHERE date = %s AND description ILIKE %s
+                WHERE date BETWEEN %s::date - INTERVAL '1 day' AND %s::date + INTERVAL '1 day'
+                AND description ILIKE %s
                 RETURNING id;
-            """, (date, f"%{description}%"))
+            """, (date, date, f"%{description}%"))
             self.conn.commit()
-            return cur.fetchone() is not None
+            deleted = cur.fetchone()
+            if not deleted:
+                # Check if the transaction exists at all
+                cur.execute("""
+                    SELECT EXISTS(
+                        SELECT 1 FROM transactions 
+                        WHERE description ILIKE %s
+                    );
+                """, (f"%{description}%",))
+                exists = cur.fetchone()[0]
+                if exists:
+                    raise ValueError(f"Found transaction with description '{description}' but date doesn't match. Try being more specific.")
+                else:
+                    raise ValueError(f"No transaction found with description containing '{description}'")
+            return True
 
     def update_transaction(self, date, description, updates):
         update_fields = []
@@ -76,17 +92,33 @@ class Database:
         if not update_fields:
             return False
             
-        update_values.extend([date, f"%{description}%"])
+        update_values.extend([date, date, f"%{description}%"])
         
         with self.conn.cursor() as cur:
+            # Use a date range of ±1 day to be more flexible
             cur.execute(f"""
                 UPDATE transactions
                 SET {", ".join(update_fields)}
-                WHERE date = %s AND description ILIKE %s
+                WHERE date BETWEEN %s::date - INTERVAL '1 day' AND %s::date + INTERVAL '1 day'
+                AND description ILIKE %s
                 RETURNING id;
             """, tuple(update_values))
             self.conn.commit()
-            return cur.fetchone() is not None
+            updated = cur.fetchone()
+            if not updated:
+                # Check if the transaction exists at all
+                cur.execute("""
+                    SELECT EXISTS(
+                        SELECT 1 FROM transactions 
+                        WHERE description ILIKE %s
+                    );
+                """, (f"%{description}%",))
+                exists = cur.fetchone()[0]
+                if exists:
+                    raise ValueError(f"Found transaction with description '{description}' but date doesn't match. Try being more specific.")
+                else:
+                    raise ValueError(f"No transaction found with description containing '{description}'")
+            return True
 
     def get_balance(self):
         with self.conn.cursor() as cur:
