@@ -63,6 +63,12 @@ if not df.empty:
                 width="large",
                 disabled=True,
             ),
+            "delete": st.column_config.CheckboxColumn(
+                "Delete",
+                help="Select to delete this transaction",
+                width="small",
+                default=False,
+            ),
         },
         hide_index=True,
         use_container_width=True,
@@ -73,6 +79,18 @@ if not df.empty:
     if not df.equals(edited_df):
         for index, row in edited_df.iterrows():
             original_row = df.loc[index]
+            # Check if row is marked for deletion
+            if row.get('delete', False):
+                try:
+                    transaction_manager.delete_transaction(row['id'])
+                    st.success(f"Deleted transaction {row['id']}")
+                    time.sleep(0.5)  # Brief pause to show success message
+                    st.rerun()  # Refresh to show updated data
+                    continue  # Skip updating other fields if deleting
+                except Exception as e:
+                    st.error(f"Error deleting transaction: {str(e)}")
+            
+            # Update other fields if changed
             for field in ['date', 'type', 'amount']:
                 if row[field] != original_row[field]:
                     try:

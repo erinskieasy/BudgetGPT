@@ -48,6 +48,10 @@ class TransactionManager:
         except (ValueError, TypeError) as e:
             raise ValueError(f"Invalid {field} value: {str(e)}")
 
+    def delete_transaction(self, transaction_id):
+        """Delete a transaction by ID."""
+        return self.db.delete_transaction(transaction_id)
+
     def get_summary_stats(self):
         df = self.get_transactions_df()
         if df.empty:
