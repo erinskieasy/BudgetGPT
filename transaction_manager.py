@@ -41,7 +41,7 @@ class TransactionManager:
             elif field == 'date':
                 if isinstance(value, str):
                     value = datetime.strptime(value, '%Y-%m-%d').date()
-                elif not isinstance(value, datetime.date):
+                elif not isinstance(value, type(datetime.now().date())):
                     raise ValueError("Invalid date format")
             
             return self.db.update_transaction(transaction_id, field, value)
