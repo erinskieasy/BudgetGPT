@@ -50,10 +50,10 @@ class Database:
         """Get transactions within a date range for matching."""
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute("""
-                SELECT * FROM transactions 
-                ORDER BY 
-                    ABS(DATE_PART('day', date - %s::date)),
-                    created_at DESC;
+                SELECT *, 
+                    ABS(DATE '%s' - date) as date_diff 
+                FROM transactions 
+                ORDER BY date_diff ASC, created_at DESC;
             """, (date,))
             return cur.fetchall()
 
