@@ -74,17 +74,6 @@ class Database:
             self.conn.commit()
             return cur.fetchone() is not None
 
-    def delete_transaction(self, id):
-        """Delete a transaction by ID."""
-        with self.conn.cursor() as cur:
-            cur.execute("""
-                DELETE FROM transactions
-                WHERE id = %s
-                RETURNING id;
-            """, (id,))
-            self.conn.commit()
-            return cur.fetchone() is not None
-
     def __del__(self):
         if hasattr(self, 'conn'):
             self.conn.close()

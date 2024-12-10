@@ -22,22 +22,17 @@ st.title("GPT Budget Tracker")
 # Initialize components
 transaction_manager, gpt_processor = init_components()
 
+# Get financial stats
+stats = transaction_manager.get_summary_stats()
+
 # Transaction history table
 st.subheader("Transaction History")
 df = transaction_manager.get_transactions_df()
 if not df.empty:
-    # Add delete column
-    df['delete'] = False
     # Create editable columns
     edited_df = st.data_editor(
         df,
         column_config={
-            "delete": st.column_config.CheckboxColumn(
-                "Delete",
-                help="Select to delete transaction",
-                default=False,
-                width="small",
-            ),
             "id": st.column_config.NumberColumn(
                 "ID",
                 help="Transaction ID",
@@ -74,21 +69,9 @@ if not df.empty:
         num_rows="dynamic",
     )
     
-    # Handle deletions first by comparing original and edited dataframes
-    for index, row in edited_df.iterrows():
-        if row['delete'] and not df.loc[index, 'delete']:  # Only process newly checked boxes
-            try:
-                if transaction_manager.delete_transaction(row['id']):
-                    st.success(f"Deleted transaction {row['id']}")
-                    time.sleep(0.1)  # Brief pause to show success message
-                    st.rerun()  # Refresh the page immediately after deletion
-                    break  # Exit the loop after successful deletion
-            except Exception as e:
-                st.error(f"Error deleting transaction: {str(e)}")
-    
-    # Handle updates for non-deleted rows
-    for index, row in edited_df.iterrows():
-        if not row['delete']:  # Only process updates for rows not marked for deletion
+    # Check for changes and update the database
+    if not df.equals(edited_df):
+        for index, row in edited_df.iterrows():
             original_row = df.loc[index]
             for field in ['date', 'type', 'amount']:
                 if row[field] != original_row[field]:
@@ -103,9 +86,6 @@ if not df.empty:
                         st.error(f"Error updating {field}: {str(e)}")
 else:
     st.info("No transactions recorded yet")
-
-# Get latest financial stats
-stats = transaction_manager.get_summary_stats()
 
 # Financial summary in columns
 col1, col2, col3 = st.columns(3)
