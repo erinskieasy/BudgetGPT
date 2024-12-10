@@ -21,6 +21,9 @@ st.title("GPT Budget Tracker")
 # Initialize components
 transaction_manager, gpt_processor = init_components()
 
+# Get financial stats
+stats = transaction_manager.get_summary_stats()
+
 # Transaction history table
 st.subheader("Transaction History")
 df = transaction_manager.get_transactions_df()
@@ -86,40 +89,5 @@ else:
                     st.success("Receipt processed successfully!")
                 except Exception as e:
                     st.error(f"Error processing receipt: {str(e)}")
-
-# Main content area
-col1, col2 = st.columns([2, 1])
-
-# Transaction history table
-with col1:
-    st.subheader("Transaction History")
-    df = transaction_manager.get_transactions_df()
-    if not df.empty:
-        st.dataframe(
-            df[['date', 'type', 'description', 'amount']],
-            hide_index=True,
-            use_container_width=True
-        )
-    else:
-        st.info("No transactions recorded yet")
-
-# Financial summary
-with col2:
-    st.subheader("Financial Overview")
-    stats = transaction_manager.get_summary_stats()
-    
-    # Display current balance
-    st.metric(
-        "Current Balance",
-        f"${stats['current_balance']:.2f}",
-        delta=None
-    )
-    
-    # Display expenses and subscriptions
-    col_exp, col_sub = st.columns(2)
-    with col_exp:
-        st.metric("Total Expenses", f"${stats['total_expenses']:.2f}")
-    with col_sub:
-        st.metric("Total Subscriptions", f"${stats['total_subscriptions']:.2f}")
 
 # Monthly spending chart moved to reports.py
