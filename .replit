@@ -28,10 +28,10 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "streamlit run main.py"
+waitForPort = 5000
 
 [deployment]
-deploymentTarget = "static"
-publicDir = "./"
+deploymentTarget = "cloudrun"
 run = ["sh", "-c", "streamlit run main.py"]
 
 [[ports]]

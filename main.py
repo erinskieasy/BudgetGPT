@@ -80,7 +80,7 @@ if not df.empty:
         },
         hide_index=True,
         use_container_width=True,
-        num_rows="dynamic",
+        num_rows="fixed",
     )
     
     # Check for changes and update the database
