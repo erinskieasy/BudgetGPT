@@ -92,16 +92,21 @@ filter_column = st.session_state.get('filter_column', 'None')
 filter_text = st.session_state.get('filter_text', '')
 df = transaction_manager.get_filtered_transactions_df(filter_column, filter_text)
 
-# Apply filters to the dataframe
+# Initialize filtered dataframe
 filtered_df = df.copy()
-if not df.empty and filter_column != "None" and filter_text:
+
+# Apply filters if specified
+if not df.empty and st.session_state.get('filter_column', 'None') != "None" and st.session_state.get('filter_text', ''):
+    filter_column = st.session_state['filter_column']
+    filter_text = st.session_state['filter_text']
+    
     if filter_column == "amount":
         try:
             filter_value = float(filter_text)
             filtered_df = filtered_df[filtered_df[filter_column] == filter_value]
         except ValueError:
             st.warning("Please enter a valid number for amount filter")
-            filtered_df = pd.DataFrame(columns=df.columns)  # Empty dataframe with same structure
+            filtered_df = pd.DataFrame(columns=df.columns)
     else:
         filtered_df = filtered_df[filtered_df[filter_column].astype(str).str.contains(filter_text, case=False)]
 
@@ -263,27 +268,7 @@ with st.expander("Quick Filters", expanded=True):
                     st.session_state.filter_text = ""
                     st.rerun()
 
-# Apply filters to the dataframe
-filtered_df = df.copy()
-if not df.empty and filter_column != "None" and filter_text:
-    if filter_column == "amount":
-        try:
-            filter_value = float(filter_text)
-            filtered_df = filtered_df[filtered_df[filter_column] == filter_value]
-        except ValueError:
-            st.warning("Please enter a valid number for amount filter")
-    else:
-        filtered_df = filtered_df[filtered_df[filter_column].astype(str).str.contains(filter_text, case=False)]
-    
-    # Calculate stats based on filtered data
-filtered_stats = {
-    'total_expenses': filtered_df[filtered_df['type'] == 'expense']['amount'].sum(),
-    'total_subscriptions': filtered_df[filtered_df['type'] == 'subscription']['amount'].sum(),
-    'current_balance': filtered_df[filtered_df['type'] == 'income']['amount'].sum() - 
-                     (filtered_df[filtered_df['type'].isin(['expense', 'subscription'])]['amount'].sum())
-} if not filtered_df.empty else stats
-
-# Financial summary in columns
+# Financial summary in columns using filtered stats
 col1, col2, col3 = st.columns(3)
 with col1:
     st.metric(
