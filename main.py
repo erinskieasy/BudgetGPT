@@ -150,9 +150,18 @@ if 'filter_text' not in st.session_state:
 if 'filter_name' not in st.session_state:
     st.session_state.filter_name = ""
 
+def reset_filter_form():
+    st.session_state.filter_column = "None"
+    st.session_state.filter_text = ""
+    st.session_state.filter_name = ""
+
 def on_filter_change():
     if st.session_state.filter_column == "None":
         st.session_state.filter_text = ""
+
+def on_saved_filter_change():
+    if st.session_state.saved_filter == "None":
+        reset_filter_form()
 
 # Quick Filters
 with st.expander("Quick Filters", expanded=True):
@@ -163,7 +172,8 @@ with st.expander("Quick Filters", expanded=True):
         selected_filter = st.selectbox(
             "Select a saved filter",
             ["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters],
-            key="saved_filter"
+            key="saved_filter",
+            on_change=on_saved_filter_change
         )
         
         if selected_filter != "None":
