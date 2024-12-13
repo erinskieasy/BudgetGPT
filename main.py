@@ -118,7 +118,7 @@ else:
 if not df.empty:
     # Create editable columns
     edited_df = st.data_editor(
-        filtered_df,
+        df,
         column_config={
             "id": st.column_config.NumberColumn(
                 "ID",
