@@ -198,10 +198,17 @@ with st.expander("Quick Filters", expanded=True):
                 key="filter_name"
             )
         with save_col2:
-            if st.button("Save Filter") and filter_name:
-                db.save_filter(filter_name, filter_column, filter_text)
-                st.success(f"Filter '{filter_name}' saved!")
-                st.rerun()
+            if st.button("Save Filter"):
+                if not filter_name:
+                    st.error("Please enter a name for the filter")
+                else:
+                    db.save_filter(filter_name, filter_column, filter_text)
+                    st.success(f"Filter '{filter_name}' saved!")
+                    # Clear form inputs
+                    st.session_state.filter_name = ""
+                    st.session_state.filter_column = "None"
+                    st.session_state.filter_text = ""
+                    st.rerun()
 
 # Apply filters to the dataframe
 filtered_df = df.copy()
