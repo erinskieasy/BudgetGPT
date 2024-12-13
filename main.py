@@ -166,27 +166,43 @@ with st.expander("Quick Filters", expanded=True):
                     st.success("Filter deleted successfully!")
                     st.rerun()
         else:
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                filter_column = st.selectbox(
+                    "Filter by column",
+                    ["None", "type", "description", "amount"],
+                    key="filter_column"
+                )
+            with col2:
+                filter_text = st.text_input(
+                    "Search term",
+                    key="filter_text",
+                    placeholder="Enter search term...",
+                    disabled=filter_column == "None"
+                )
+            
+            # Reset form when "None" is selected
+            if filter_column == "None":
+                st.session_state.filter_text = ""
+    else:
+        col1, col2 = st.columns([1, 2])
+        with col1:
             filter_column = st.selectbox(
                 "Filter by column",
                 ["None", "type", "description", "amount"],
                 key="filter_column"
             )
+        with col2:
             filter_text = st.text_input(
                 "Search term",
                 key="filter_text",
-                placeholder="Enter search term..."
+                placeholder="Enter search term...",
+                disabled=filter_column == "None"
             )
-    else:
-        filter_column = st.selectbox(
-            "Filter by column",
-            ["None", "type", "description", "amount"],
-            key="filter_column"
-        )
-        filter_text = st.text_input(
-            "Search term",
-            key="filter_text",
-            placeholder="Enter search term..."
-        )
+            
+        # Reset form when "None" is selected
+        if filter_column == "None":
+            st.session_state.filter_text = ""
     
     # Save current filter
     if filter_column != "None" and filter_text:
