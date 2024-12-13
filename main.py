@@ -63,11 +63,14 @@ with st.sidebar:
         help="Set the exchange rate for USD to JMD conversion"
     )
     
-    # Update database if rate changes
+    # Update database and GPT processor if rate changes
     if exchange_rate != current_rate:
         db.update_setting('exchange_rate', exchange_rate)
-# Update exchange rate in GPT processor
-gpt_processor.set_exchange_rate(exchange_rate)
+        gpt_processor.set_exchange_rate(exchange_rate)
+        st.rerun()  # Refresh the page to reflect the new rate
+    else:
+        # Always ensure GPT processor has current rate
+        gpt_processor.set_exchange_rate(current_rate)
 
 # Get financial stats
 stats = transaction_manager.get_summary_stats()
