@@ -205,8 +205,8 @@ with st.expander("Quick Filters", expanded=True):
             disabled=filter_column == "None"
         )
     
-    # Save current filter
-    if filter_column != "None" and filter_text:
+    # Save current filter (only show when no saved filter is selected)
+    if filter_column != "None" and filter_text and st.session_state.saved_filter == "None":
         save_col1, save_col2 = st.columns([3, 1])
         with save_col1:
             filter_name = st.text_input(
