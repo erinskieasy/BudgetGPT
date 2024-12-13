@@ -14,11 +14,7 @@ class GPTProcessor:
         
     def set_exchange_rate(self, rate):
         """Update the USD to JMD exchange rate"""
-        self.exchange_rate = float(rate)
-
-    def convert_usd_to_jmd(self, amount_usd):
-        """Convert USD amount to JMD using current exchange rate"""
-        return round(float(amount_usd) * self.exchange_rate, 2)
+        self.exchange_rate = rate
 
     def process_text_input(self, text):
         # Check if it's a deletion request
@@ -53,34 +49,24 @@ class GPTProcessor:
         # If not a deletion request, process as normal transaction
         current_date = datetime.now().strftime('%Y-%m-%d')
         prompt = f"""
-        Extract the following information from this transaction description and return as JSON.
-        Current exchange rate: {self.exchange_rate} JMD = 1 USD
-
-        Required fields:
-        1. date (YYYY-MM-DD format)
-           - Use specific date if mentioned
-           - Otherwise use: {current_date}
-        2. type (income/expense/subscription)
-        3. description (clear, concise summary)
-        4. amount (in JMD)
-           - If amount is in USD, convert to JMD using current rate
-           - Keep original USD amount in description when converted
-        5. currency_detected (USD or JMD)
-
-        Rules for currency detection:
-        - Detect USD if text contains: USD, US dollars, US$, $... USD
-        - Otherwise assume JMD
-        - For USD amounts, convert to JMD and note conversion in description
+        Extract the following information from this transaction description and return as JSON:
+        1. date (in YYYY-MM-DD format)
+   - If a specific date is mentioned, use that date
+   - If no date is mentioned, use date: {current_date}
+        2. type (either 'income', 'expense', or 'subscription')
+        3. description (a clear, concise summary)
+        4. amount (numerical value)
+        5. currency (detect if amount is specified in USD/US dollars and convert to JMD at rate of {self.exchange_rate} JMD = 1 USD)
 
         Transaction text: {text}
 
         Response format:
         {{
             "date": "YYYY-MM-DD",
-            "type": "income/expense/subscription",
+            "type": "expense/subscription",
             "description": "summary",
             "amount": float,
-            "currency_detected": "USD/JMD"
+            "original_currency": "JMD/USD"
         }}
 
         Examples:
@@ -88,9 +74,9 @@ class GPTProcessor:
         {{
             "date": "{current_date}",
             "type": "expense",
-            "description": "Groceries (converted from $50 USD at {self.exchange_rate} JMD/USD)",
-            "amount": {self.convert_usd_to_jmd(50)},
-            "currency_detected": "USD"
+            "description": "Groceries (converted from $50 USD)",
+            "amount": {50 * self.exchange_rate},
+            "original_currency": "USD"
         }}
 
         Input: "Paid $30 for Netflix on November 4th"
@@ -99,22 +85,19 @@ class GPTProcessor:
             "type": "subscription",
             "description": "Netflix subscription",
             "amount": 30.00,
-            "currency_detected": "JMD"
+            "original_currency": "JMD"
         }}
 
-        Input: "Bought lunch for 20 US dollars yesterday"
+        Input: "Bought lunch for 20 US dollars"
         {{
             "date": "{current_date}",
             "type": "expense",
-            "description": "Lunch (converted from $20 USD at {self.exchange_rate} JMD/USD)",
-            "amount": {self.convert_usd_to_jmd(20)},
-            "currency_detected": "USD"
+            "description": "Lunch (converted from $20 USD)",
+            "amount": {20 * self.exchange_rate},
+            "original_currency": "USD"
         }}
 
-        Important:
-        - Always include conversion rate in description for USD transactions
-        - All amounts in response should be in JMD
-        - Round converted amounts to 2 decimal places
+        Note: If the amount is in USD/US dollars, add a note about the conversion in the description.
         """
 
         response = self.client.chat.completions.create(
