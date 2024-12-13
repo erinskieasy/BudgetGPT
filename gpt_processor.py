@@ -51,6 +51,7 @@ class GPTProcessor:
         2. type (either 'income', 'expense', or 'subscription')
         3. description (a clear, concise summary)
         4. amount (numerical value)
+        5. currency (detect if amount is specified in USD/US dollars and convert to JMD at rate of 155 JMD = 1 USD)
 
         Transaction text: {text}
 
@@ -59,16 +60,18 @@ class GPTProcessor:
             "date": "YYYY-MM-DD",
             "type": "expense/subscription",
             "description": "summary",
-            "amount": float
+            "amount": float,
+            "original_currency": "JMD/USD"
         }}
 
-        Example responses:
-        Input: "Spent $50 on groceries"
+        Examples:
+        Input: "Spent $50 USD on groceries"
         {{
             "date": "{current_date}",
             "type": "expense",
-            "description": "Groceries",
-            "amount": 50.00
+            "description": "Groceries (converted from $50 USD)",
+            "amount": 7750.00,
+            "original_currency": "USD"
         }}
 
         Input: "Paid $30 for Netflix on November 4th"
@@ -76,8 +79,20 @@ class GPTProcessor:
             "date": "2024-11-04",
             "type": "subscription",
             "description": "Netflix subscription",
-            "amount": 30.00
+            "amount": 30.00,
+            "original_currency": "JMD"
         }}
+
+        Input: "Bought lunch for 20 US dollars"
+        {{
+            "date": "{current_date}",
+            "type": "expense",
+            "description": "Lunch (converted from $20 USD)",
+            "amount": 3100.00,
+            "original_currency": "USD"
+        }}
+
+        Note: If the amount is in USD/US dollars, multiply it by 155 to convert to JMD and add a note about the conversion in the description.
         """
 
         response = self.client.chat.completions.create(
