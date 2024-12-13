@@ -173,28 +173,21 @@ if not df.empty:
 else:
     st.info("No transactions recorded yet")
 
-# Initialize session state for filters
-if 'filter_column' not in st.session_state:
-    st.session_state['filter_column'] = "None"
-if 'filter_text' not in st.session_state:
-    st.session_state['filter_text'] = ""
-if 'filter_name' not in st.session_state:
-    st.session_state['filter_name'] = ""
-if 'saved_filter' not in st.session_state:
-    st.session_state['saved_filter'] = "None"
-
 def reset_filter_form():
     st.session_state['filter_column'] = "None"
     st.session_state['filter_text'] = ""
     st.session_state['filter_name'] = ""
+    st.session_state['saved_filter'] = "None"
 
 def on_filter_change():
     if st.session_state.filter_column == "None":
-        st.session_state.filter_text = ""
+        st.session_state['filter_text'] = ""
+        st.rerun()
 
 def on_saved_filter_change():
     if st.session_state.saved_filter == "None":
         reset_filter_form()
+        st.rerun()
 
 # Quick Filters
 with st.expander("Quick Filters", expanded=True):
@@ -224,19 +217,21 @@ with st.expander("Quick Filters", expanded=True):
     # Filter inputs
     col1, col2 = st.columns([1, 2])
     with col1:
-        filter_column = st.selectbox(
+        st.selectbox(
             "Filter by column",
             ["None", "type", "description", "amount"],
             key="filter_column",
             on_change=on_filter_change
         )
     with col2:
-        filter_text = st.text_input(
+        if st.text_input(
             "Search term",
             key="filter_text",
             placeholder="Enter search term...",
-            disabled=filter_column == "None"
-        )
+            disabled=st.session_state.filter_column == "None",
+            on_change=lambda: st.rerun()
+        ):
+            st.rerun()
     
     # Save current filter (only show when no saved filter is selected)
     if filter_column != "None" and filter_text and st.session_state.saved_filter == "None":
