@@ -17,7 +17,16 @@ def init_components():
     return TransactionManager(db), gpt, db
 
 # Page configuration and PWA setup
-st.set_page_config(page_title="GPT Budget Tracker", layout="wide")
+st.set_page_config(
+    page_title="GPT Budget Tracker",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    menu_items={
+        'Get Help': None,
+        'Report a bug': None,
+        'About': None
+    }
+)
 
 # Serve static files for PWA
 serve_static_files()
@@ -72,7 +81,7 @@ with st.sidebar:
     exchange_rate = st.number_input(
         "USD to JMD Exchange Rate",
         min_value=100.0,
-        max_value=200.0,
+        max_value=500.0,
         value=current_rate,
         step=0.1,
         help="Set the exchange rate for USD to JMD conversion"
