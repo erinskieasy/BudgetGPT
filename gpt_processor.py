@@ -97,7 +97,7 @@ class GPTProcessor:
             "original_currency": "USD"
         }}
 
-        Note: If the amount is in USD/US dollars, multiply it by 155 to convert to JMD and add a note about the conversion in the description.
+        Note: If the amount is in USD/US dollars, add a note about the conversion in the description.
         """
 
         response = self.client.chat.completions.create(

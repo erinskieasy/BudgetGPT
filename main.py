@@ -48,13 +48,18 @@ st.title("GPT Budget Tracker")
 # Sidebar configuration
 with st.sidebar:
     st.title("Settings")
+    # Initialize session state for exchange rate if not present
+    if 'exchange_rate' not in st.session_state:
+        st.session_state.exchange_rate = 155.0
+    
     exchange_rate = st.number_input(
         "USD to JMD Exchange Rate",
         min_value=100.0,
         max_value=200.0,
-        value=155.0,
+        value=st.session_state.exchange_rate,
         step=0.1,
-        help="Set the exchange rate for USD to JMD conversion"
+        help="Set the exchange rate for USD to JMD conversion",
+        key='exchange_rate'  # This automatically updates session_state.exchange_rate
     )
 
 # Initialize components
