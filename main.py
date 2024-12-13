@@ -54,24 +54,18 @@ with st.sidebar:
     # Get current exchange rate from database
     current_rate = float(db.get_setting('exchange_rate') or 155.0)
     
-    # Initialize session state with database value
-    if 'exchange_rate' not in st.session_state:
-        st.session_state.exchange_rate = current_rate
-    
     exchange_rate = st.number_input(
         "USD to JMD Exchange Rate",
         min_value=100.0,
         max_value=200.0,
         value=current_rate,
         step=0.1,
-        help="Set the exchange rate for USD to JMD conversion",
-        key='exchange_rate'
+        help="Set the exchange rate for USD to JMD conversion"
     )
     
     # Update database if rate changes
     if exchange_rate != current_rate:
         db.update_setting('exchange_rate', exchange_rate)
-        st.session_state.exchange_rate = exchange_rate
 # Update exchange rate in GPT processor
 gpt_processor.set_exchange_rate(exchange_rate)
 
