@@ -1,13 +1,11 @@
 import base64
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from openai import OpenAI
 import os
 
 class GPTProcessor:
     def __init__(self):
-        # the newest OpenAI model is "gpt-4o" which was released May 13, 2024.
-        # do not change this unless explicitly requested by the user
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.model = "gpt-4o"
         self.exchange_rate = 155.0  # Default exchange rate
@@ -62,17 +60,18 @@ class GPTProcessor:
         )
         
         delete_result = json.loads(delete_response.choices[0].message.content)
-        if delete_result.get("is_deletion") and delete_result.get("transaction_ids"):
-            return {"action": "delete", "transaction_ids": delete_result["transaction_ids"]}
+        if delete_result.get("is_deletion"):
+            return delete_result
 
         # If not a deletion request, process as normal transaction
         current_date = datetime.now().strftime('%Y-%m-%d')
+        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
         prompt = f"""
         Extract ALL transactions from this text and return them as a JSON array. For each transaction, provide:
         1. date (in YYYY-MM-DD format)
            - If a specific date is mentioned, use that date
            - If no date is mentioned, use date: {current_date}
-           - If "yesterday" is mentioned, calculate the appropriate date
+           - If "yesterday" is mentioned, use date: {yesterday}
         2. type (either 'income', 'expense', or 'subscription')
         3. description (a clear, concise summary)
         4. amount (numerical value)
@@ -85,7 +84,7 @@ class GPTProcessor:
             "transactions": [
                 {{
                     "date": "YYYY-MM-DD",
-                    "type": "expense/subscription",
+                    "type": "expense/subscription/income",
                     "description": "summary",
                     "amount": float,
                     "original_currency": "JMD/USD"
@@ -119,14 +118,14 @@ class GPTProcessor:
         {{
             "transactions": [
                 {{
-                    "date": "2024-12-12",
+                    "date": "{yesterday}",
                     "type": "expense",
                     "description": "Lunch (converted from $20 USD)",
                     "amount": {20 * self.exchange_rate},
                     "original_currency": "USD"
                 }},
                 {{
-                    "date": "2024-12-12",
+                    "date": "{yesterday}",
                     "type": "expense",
                     "description": "Dinner (converted from $30 USD)",
                     "amount": {30 * self.exchange_rate},
