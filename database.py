@@ -168,7 +168,6 @@ class Database:
                     raise Exception("Failed to update transaction") from e
                 self.connect()
 
-    def delete_transaction(self, transaction_id):
     def get_setting(self, key):
         """Get a setting value by key with retry logic"""
         max_retries = 3
@@ -207,6 +206,7 @@ class Database:
                     raise Exception(f"Failed to update setting {key}") from e
                 self.connect()
 
+    def delete_transaction(self, transaction_id):
         """Delete a transaction by ID with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
