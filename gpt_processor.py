@@ -49,10 +49,11 @@ class GPTProcessor:
         # If not a deletion request, process as normal transaction
         current_date = datetime.now().strftime('%Y-%m-%d')
         prompt = f"""
-        Extract the following information from this transaction description and return as JSON:
+        Extract ALL transactions from this text and return them as a JSON array. For each transaction, provide:
         1. date (in YYYY-MM-DD format)
-   - If a specific date is mentioned, use that date
-   - If no date is mentioned, use date: {current_date}
+           - If a specific date is mentioned, use that date
+           - If no date is mentioned, use date: {current_date}
+           - If "yesterday" is mentioned, calculate the appropriate date
         2. type (either 'income', 'expense', or 'subscription')
         3. description (a clear, concise summary)
         4. amount (numerical value)
@@ -62,42 +63,63 @@ class GPTProcessor:
 
         Response format:
         {{
-            "date": "YYYY-MM-DD",
-            "type": "expense/subscription",
-            "description": "summary",
-            "amount": float,
-            "original_currency": "JMD/USD"
+            "transactions": [
+                {{
+                    "date": "YYYY-MM-DD",
+                    "type": "expense/subscription",
+                    "description": "summary",
+                    "amount": float,
+                    "original_currency": "JMD/USD"
+                }},
+                ...
+            ]
         }}
 
         Examples:
-        Input: "Spent $50 USD on groceries"
+        Input: "today i bought gas for $500 and beer for $1000"
         {{
-            "date": "{current_date}",
-            "type": "expense",
-            "description": "Groceries (converted from $50 USD)",
-            "amount": {50 * self.exchange_rate},
-            "original_currency": "USD"
+            "transactions": [
+                {{
+                    "date": "{current_date}",
+                    "type": "expense",
+                    "description": "Gas",
+                    "amount": 500.00,
+                    "original_currency": "JMD"
+                }},
+                {{
+                    "date": "{current_date}",
+                    "type": "expense",
+                    "description": "Beer",
+                    "amount": 1000.00,
+                    "original_currency": "JMD"
+                }}
+            ]
         }}
 
-        Input: "Paid $30 for Netflix on November 4th"
+        Input: "yesterday I spent $20 USD on lunch and $30 USD on dinner"
         {{
-            "date": "2024-11-04",
-            "type": "subscription",
-            "description": "Netflix subscription",
-            "amount": 30.00,
-            "original_currency": "JMD"
+            "transactions": [
+                {{
+                    "date": "2024-12-12",
+                    "type": "expense",
+                    "description": "Lunch (converted from $20 USD)",
+                    "amount": {20 * self.exchange_rate},
+                    "original_currency": "USD"
+                }},
+                {{
+                    "date": "2024-12-12",
+                    "type": "expense",
+                    "description": "Dinner (converted from $30 USD)",
+                    "amount": {30 * self.exchange_rate},
+                    "original_currency": "USD"
+                }}
+            ]
         }}
 
-        Input: "Bought lunch for 20 US dollars"
-        {{
-            "date": "{current_date}",
-            "type": "expense",
-            "description": "Lunch (converted from $20 USD)",
-            "amount": {20 * self.exchange_rate},
-            "original_currency": "USD"
-        }}
-
-        Note: If the amount is in USD/US dollars, add a note about the conversion in the description.
+        Note: 
+        - If the amount is in USD/US dollars, add a note about the conversion in the description
+        - Split the input into individual transactions when multiple items are mentioned
+        - Use the same date for all transactions unless specified otherwise
         """
 
         response = self.client.chat.completions.create(

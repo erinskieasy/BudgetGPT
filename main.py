@@ -183,9 +183,13 @@ if input_method == "Text Input":
                         st.error("Failed to delete some transactions:\n" + 
                                 "\n".join(f"ID {id}: {error}" for id, error in failed))
                 else:
-                    # Handle normal transaction
-                    transaction_manager.add_transaction(result)
-                    st.success("Transaction added successfully!")
+                    # Handle multiple transactions
+                    transactions = result.get("transactions", [result])
+                    for transaction in transactions:
+                        transaction_manager.add_transaction(transaction)
+                    
+                    num_transactions = len(transactions)
+                    st.success(f"Successfully added {num_transactions} transaction{'s' if num_transactions > 1 else ''}!")
                 st.rerun()  # Refresh to show the updated transactions
             except Exception as e:
                 st.error(f"Error processing input: {str(e)}")
