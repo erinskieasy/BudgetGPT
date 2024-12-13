@@ -92,33 +92,41 @@ filter_column = st.session_state.get('filter_column', 'None')
 filter_text = st.session_state.get('filter_text', '')
 df = transaction_manager.get_filtered_transactions_df(filter_column, filter_text)
 
+# Apply filters to the dataframe
+filtered_df = df.copy()
+if not df.empty and filter_column != "None" and filter_text:
+    if filter_column == "amount":
+        try:
+            filter_value = float(filter_text)
+            filtered_df = filtered_df[filtered_df[filter_column] == filter_value]
+        except ValueError:
+            st.warning("Please enter a valid number for amount filter")
+            filtered_df = pd.DataFrame(columns=df.columns)  # Empty dataframe with same structure
+    else:
+        filtered_df = filtered_df[filtered_df[filter_column].astype(str).str.contains(filter_text, case=False)]
+
+# Calculate stats based on filtered data
+filtered_stats = {
+    'total_expenses': filtered_df[filtered_df['type'] == 'expense']['amount'].sum(),
+    'total_subscriptions': filtered_df[filtered_df['type'] == 'subscription']['amount'].sum(),
+    'current_balance': (
+        filtered_df[filtered_df['type'] == 'income']['amount'].sum() -
+        filtered_df[filtered_df['type'].isin(['expense', 'subscription'])]['amount'].sum()
+    )
+} if not filtered_df.empty else {
+    'total_expenses': 0,
+    'total_subscriptions': 0,
+    'current_balance': 0
+}
+
 # Transaction history table and export options
 st.subheader("Transaction History")
 
-# Calculate stats based on filtered data
-if df.empty:
-    stats = {
-        'total_expenses': 0,
-        'total_subscriptions': 0,
-        'current_balance': 0,
-        'monthly_breakdown': {}
-    }
-else:
-    stats = {
-        'total_expenses': df[df['type'] == 'expense']['amount'].sum(),
-        'total_subscriptions': df[df['type'] == 'subscription']['amount'].sum(),
-        'current_balance': (
-            df[df['type'] == 'income']['amount'].sum() -
-            df[df['type'].isin(['expense', 'subscription'])]['amount'].sum()
-        ),
-        'monthly_breakdown': df.groupby(pd.to_datetime(df['date']).dt.strftime('%Y-%m'))['amount'].sum().to_dict()
-    }
-
 # Display transactions if available
-if not df.empty:
+if not filtered_df.empty:
     # Create editable columns
     edited_df = st.data_editor(
-        df,
+        filtered_df,
         column_config={
             "id": st.column_config.NumberColumn(
                 "ID",
