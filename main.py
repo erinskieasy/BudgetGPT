@@ -83,7 +83,7 @@ df = transaction_manager.get_transactions_df()
 if not df.empty:
     # Create editable columns
     edited_df = st.data_editor(
-        df,
+        filtered_df,
         column_config={
             "id": st.column_config.NumberColumn(
                 "ID",
@@ -141,40 +141,84 @@ else:
 
 # Quick Filters
 with st.expander("Quick Filters", expanded=True):
-    col1, col2 = st.columns(2)
-    with col1:
+    # Saved Filters Section
+    saved_filters = db.get_saved_filters()
+    if saved_filters:
+        st.subheader("Saved Filters")
+        selected_filter = st.selectbox(
+            "Select a saved filter",
+            ["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters],
+            key="saved_filter"
+        )
+        
+        if selected_filter != "None":
+            selected_idx = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters].index(selected_filter)
+            filter_data = saved_filters[selected_idx]
+            filter_column = filter_data['filter_column']
+            filter_text = filter_data['filter_text']
+            
+            # Delete filter button
+            if st.button(f"Delete '{filter_data['name']}'"):
+                if db.delete_saved_filter(filter_data['id']):
+                    st.success("Filter deleted successfully!")
+                    st.rerun()
+        else:
+            filter_column = st.selectbox(
+                "Filter by column",
+                ["None", "type", "description", "amount"],
+                key="filter_column"
+            )
+            filter_text = st.text_input(
+                "Search term",
+                key="filter_text",
+                placeholder="Enter search term..."
+            )
+    else:
         filter_column = st.selectbox(
             "Filter by column",
             ["None", "type", "description", "amount"],
             key="filter_column"
         )
-    with col2:
         filter_text = st.text_input(
             "Search term",
             key="filter_text",
             placeholder="Enter search term..."
         )
+    
+    # Save current filter
+    if filter_column != "None" and filter_text:
+        save_col1, save_col2 = st.columns([3, 1])
+        with save_col1:
+            filter_name = st.text_input(
+                "Filter name",
+                placeholder="Enter a name to save this filter...",
+                key="filter_name"
+            )
+        with save_col2:
+            if st.button("Save Filter") and filter_name:
+                db.save_filter(filter_name, filter_column, filter_text)
+                st.success(f"Filter '{filter_name}' saved!")
+                st.rerun()
 
 # Apply filters to the dataframe
+filtered_df = df.copy()
 if not df.empty and filter_column != "None" and filter_text:
     if filter_column == "amount":
         try:
             filter_value = float(filter_text)
-            df = df[df[filter_column] == filter_value]
+            filtered_df = filtered_df[filtered_df[filter_column] == filter_value]
         except ValueError:
             st.warning("Please enter a valid number for amount filter")
     else:
-        df = df[df[filter_column].astype(str).str.contains(filter_text, case=False)]
+        filtered_df = filtered_df[filtered_df[filter_column].astype(str).str.contains(filter_text, case=False)]
     
-    # Recalculate stats based on filtered data
-    filtered_stats = {
-        'total_expenses': df[df['type'] == 'expense']['amount'].sum(),
-        'total_subscriptions': df[df['type'] == 'subscription']['amount'].sum(),
-        'current_balance': df[df['type'] == 'income']['amount'].sum() - 
-                         (df[df['type'].isin(['expense', 'subscription'])]['amount'].sum())
-    }
-else:
-    filtered_stats = stats
+    # Calculate stats based on filtered data
+filtered_stats = {
+    'total_expenses': filtered_df[filtered_df['type'] == 'expense']['amount'].sum(),
+    'total_subscriptions': filtered_df[filtered_df['type'] == 'subscription']['amount'].sum(),
+    'current_balance': filtered_df[filtered_df['type'] == 'income']['amount'].sum() - 
+                     (filtered_df[filtered_df['type'].isin(['expense', 'subscription'])]['amount'].sum())
+} if not filtered_df.empty else stats
 
 # Financial summary in columns
 col1, col2, col3 = st.columns(3)

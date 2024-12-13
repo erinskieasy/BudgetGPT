@@ -1,29 +1,31 @@
 import os
 import psycopg2
 from datetime import datetime
-import time
+import pandas as pd
 
 class Database:
     def __init__(self):
         self.conn = None
         self.connect()
-        self.setup_database()
+        self.setup_tables()
 
     def connect(self):
         """Connect to the PostgreSQL database with retry logic"""
         max_retries = 3
-        retry_delay = 2  # seconds
-        
         for attempt in range(max_retries):
             try:
-                if self.conn is None or self.conn.closed:
-                    self.conn = psycopg2.connect(os.environ['DATABASE_URL'])
-                    self.conn.autocommit = False
+                if self.conn is not None:
+                    try:
+                        self.conn.close()
+                    except:
+                        pass
+                
+                self.conn = psycopg2.connect(os.environ['DATABASE_URL'])
+                self.conn.autocommit = False
                 return
-            except psycopg2.Error as e:
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if attempt == max_retries - 1:
                     raise Exception("Failed to connect to database") from e
-                time.sleep(retry_delay)
 
     def ensure_connection(self):
         """Ensure database connection is active"""
@@ -31,11 +33,11 @@ class Database:
             # Try a simple query to test connection
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1")
-        except (psycopg2.Error, AttributeError):
+        except (psycopg2.OperationalError, psycopg2.InterfaceError):
             self.connect()
 
-    def setup_database(self):
-        """Set up the database schema"""
+    def setup_tables(self):
+        """Initialize database tables with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -46,7 +48,7 @@ class Database:
                         CREATE TABLE IF NOT EXISTS transactions (
                             id SERIAL PRIMARY KEY,
                             date DATE NOT NULL,
-                            type VARCHAR(20) NOT NULL,
+                            type VARCHAR(50) NOT NULL,
                             description TEXT,
                             amount DECIMAL(10,2) NOT NULL,
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -57,8 +59,20 @@ class Database:
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS settings (
                             key VARCHAR(50) PRIMARY KEY,
-                            value TEXT,
+                            value TEXT NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+
+                    # Create saved_filters table
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS saved_filters (
+                            id SERIAL PRIMARY KEY,
+                            name VARCHAR(100) NOT NULL,
+                            filter_column VARCHAR(50) NOT NULL,
+                            filter_text TEXT NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         )
                     """)
                     
@@ -66,7 +80,7 @@ class Database:
                     return
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if attempt == max_retries - 1:
-                    raise Exception("Failed to set up database") from e
+                    raise Exception("Failed to setup tables") from e
                 self.connect()
 
     def add_transaction(self, date, type_trans, description, amount):
@@ -79,7 +93,7 @@ class Database:
                     cur.execute("""
                         INSERT INTO transactions (date, type, description, amount)
                         VALUES (%s, %s, %s, %s)
-                        RETURNING id
+                        RETURNING id;
                     """, (date, type_trans, description, amount))
                     self.conn.commit()
                     return cur.fetchone()[0]
@@ -96,9 +110,9 @@ class Database:
                 self.ensure_connection()
                 with self.conn.cursor() as cur:
                     cur.execute("""
-                        SELECT id, date, type, description, amount 
-                        FROM transactions 
-                        ORDER BY date DESC, id DESC
+                        SELECT id, date, type, description, amount
+                        FROM transactions
+                        ORDER BY date DESC, created_at DESC
                     """)
                     columns = ['id', 'date', 'type', 'description', 'amount']
                     results = cur.fetchall()
@@ -117,13 +131,11 @@ class Database:
                 with self.conn.cursor() as cur:
                     cur.execute("""
                         SELECT 
-                            COALESCE(SUM(CASE 
-                                WHEN type = 'income' THEN amount 
-                                ELSE -amount 
-                            END), 0) as balance
+                            COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) -
+                            COALESCE(SUM(CASE WHEN type IN ('expense', 'subscription') THEN amount ELSE 0 END), 0)
                         FROM transactions
                     """)
-                    return cur.fetchone()[0]
+                    return cur.fetchone()[0] or 0
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if attempt == max_retries - 1:
                     raise Exception("Failed to calculate balance") from e
@@ -137,20 +149,20 @@ class Database:
                 self.ensure_connection()
                 with self.conn.cursor() as cur:
                     cur.execute(f"""
-                        UPDATE transactions 
-                        SET {field} = %s 
+                        UPDATE transactions
+                        SET {field} = %s
                         WHERE id = %s
-                        RETURNING id
+                        RETURNING id;
                     """, (value, transaction_id))
                     self.conn.commit()
                     return cur.fetchone() is not None
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if attempt == max_retries - 1:
-                    raise Exception("Failed to update transaction") from e
+                    raise Exception(f"Failed to update transaction {transaction_id}") from e
                 self.connect()
 
     def get_latest_transaction_ids(self, limit=None):
-        """Get the IDs of the latest transactions, ordered by date"""
+        """Get IDs of the latest transactions with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -158,29 +170,27 @@ class Database:
                 with self.conn.cursor() as cur:
                     query = """
                         SELECT id FROM transactions
-                        ORDER BY date DESC, id DESC
+                        ORDER BY created_at DESC, id DESC
                     """
                     if limit:
-                        query += " LIMIT %s"
-                        cur.execute(query, (limit,))
-                    else:
-                        cur.execute(query)
-                    results = cur.fetchall()
-                    return [r[0] for r in results]
+                        query += f" LIMIT {limit}"
+                    cur.execute(query)
+                    return [row[0] for row in cur.fetchall()]
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if attempt == max_retries - 1:
                     raise Exception("Failed to get latest transaction IDs") from e
                 self.connect()
 
     def get_setting(self, key):
-        """Get a setting value by key with retry logic"""
+        """Get a setting value with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 self.ensure_connection()
                 with self.conn.cursor() as cur:
                     cur.execute("""
-                        SELECT value FROM settings
+                        SELECT value
+                        FROM settings
                         WHERE key = %s;
                     """, (key,))
                     result = cur.fetchone()
@@ -191,7 +201,7 @@ class Database:
                 self.connect()
 
     def update_setting(self, key, value):
-        """Update a setting value by key with retry logic"""
+        """Update a setting with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -210,6 +220,64 @@ class Database:
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if attempt == max_retries - 1:
                     raise Exception(f"Failed to update setting {key}") from e
+                self.connect()
+
+    def save_filter(self, name, filter_column, filter_text):
+        """Save a filter preset with retry logic"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO saved_filters (name, filter_column, filter_text)
+                        VALUES (%s, %s, %s)
+                        RETURNING id;
+                    """, (name, filter_column, filter_text))
+                    self.conn.commit()
+                    return cur.fetchone()[0]
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to save filter") from e
+                self.connect()
+
+    def get_saved_filters(self):
+        """Get all saved filters with retry logic"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT id, name, filter_column, filter_text
+                        FROM saved_filters
+                        ORDER BY name ASC
+                    """)
+                    columns = ['id', 'name', 'filter_column', 'filter_text']
+                    results = cur.fetchall()
+                    return [dict(zip(columns, row)) for row in results]
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to get saved filters") from e
+                self.connect()
+
+    def delete_saved_filter(self, filter_id):
+        """Delete a saved filter by ID with retry logic"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    cur.execute("""
+                        DELETE FROM saved_filters
+                        WHERE id = %s
+                        RETURNING id;
+                    """, (filter_id,))
+                    self.conn.commit()
+                    return cur.fetchone() is not None
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to delete saved filter") from e
                 self.connect()
 
     def delete_transaction(self, transaction_id):
