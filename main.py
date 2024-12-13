@@ -142,6 +142,18 @@ if not df.empty:
 else:
     st.info("No transactions recorded yet")
 
+# Initialize session state for filters
+if 'filter_column' not in st.session_state:
+    st.session_state.filter_column = "None"
+if 'filter_text' not in st.session_state:
+    st.session_state.filter_text = ""
+if 'filter_name' not in st.session_state:
+    st.session_state.filter_name = ""
+
+def on_filter_change():
+    if st.session_state.filter_column == "None":
+        st.session_state.filter_text = ""
+
 # Quick Filters
 with st.expander("Quick Filters", expanded=True):
     # Saved Filters Section
@@ -157,52 +169,52 @@ with st.expander("Quick Filters", expanded=True):
         if selected_filter != "None":
             selected_idx = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters].index(selected_filter)
             filter_data = saved_filters[selected_idx]
-            filter_column = filter_data['filter_column']
-            filter_text = filter_data['filter_text']
+            st.session_state.filter_column = filter_data['filter_column']
+            st.session_state.filter_text = filter_data['filter_text']
             
             # Delete filter button
             if st.button(f"Delete '{filter_data['name']}'"):
                 if db.delete_saved_filter(filter_data['id']):
                     st.success("Filter deleted successfully!")
                     st.rerun()
-        else:
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                filter_column = st.selectbox(
-                    "Filter by column",
-                    ["None", "type", "description", "amount"],
-                    key="filter_column"
-                )
-            with col2:
-                filter_text = st.text_input(
-                    "Search term",
-                    key="filter_text",
-                    placeholder="Enter search term...",
-                    disabled=filter_column == "None"
-                )
-            
-            # Reset form when "None" is selected
-            if filter_column == "None":
-                st.session_state.filter_text = ""
-    else:
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            filter_column = st.selectbox(
-                "Filter by column",
-                ["None", "type", "description", "amount"],
-                key="filter_column"
+    
+    # Filter inputs
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        filter_column = st.selectbox(
+            "Filter by column",
+            ["None", "type", "description", "amount"],
+            key="filter_column",
+            on_change=on_filter_change
+        )
+    with col2:
+        filter_text = st.text_input(
+            "Search term",
+            key="filter_text",
+            placeholder="Enter search term...",
+            disabled=filter_column == "None"
+        )
+    
+    # Save current filter
+    if filter_column != "None" and filter_text:
+        save_col1, save_col2 = st.columns([3, 1])
+        with save_col1:
+            filter_name = st.text_input(
+                "Filter name",
+                key="filter_name",
+                placeholder="Enter a name to save this filter..."
             )
-        with col2:
-            filter_text = st.text_input(
-                "Search term",
-                key="filter_text",
-                placeholder="Enter search term...",
-                disabled=filter_column == "None"
-            )
-            
-        # Reset form when "None" is selected
-        if filter_column == "None":
-            st.session_state.filter_text = ""
+        with save_col2:
+            if st.button("Save Filter"):
+                if not filter_name:
+                    st.error("Please enter a name for the filter")
+                else:
+                    db.save_filter(filter_name, filter_column, filter_text)
+                    st.success(f"Filter '{filter_name}' saved!")
+                    st.session_state.filter_name = ""
+                    st.session_state.filter_column = "None"
+                    st.session_state.filter_text = ""
+                    st.rerun()
     
     # Save current filter
     if filter_column != "None" and filter_text:
