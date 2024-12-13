@@ -10,6 +10,11 @@ class GPTProcessor:
         # do not change this unless explicitly requested by the user
         self.client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.model = "gpt-4o"
+        self.exchange_rate = 155.0  # Default exchange rate
+        
+    def set_exchange_rate(self, rate):
+        """Update the USD to JMD exchange rate"""
+        self.exchange_rate = rate
 
     def process_text_input(self, text):
         # Check if it's a deletion request
@@ -51,7 +56,7 @@ class GPTProcessor:
         2. type (either 'income', 'expense', or 'subscription')
         3. description (a clear, concise summary)
         4. amount (numerical value)
-        5. currency (detect if amount is specified in USD/US dollars and convert to JMD at rate of 155 JMD = 1 USD)
+        5. currency (detect if amount is specified in USD/US dollars and convert to JMD at rate of {self.exchange_rate} JMD = 1 USD)
 
         Transaction text: {text}
 
@@ -70,7 +75,7 @@ class GPTProcessor:
             "date": "{current_date}",
             "type": "expense",
             "description": "Groceries (converted from $50 USD)",
-            "amount": 7750.00,
+            "amount": {50 * self.exchange_rate},
             "original_currency": "USD"
         }}
 
@@ -88,7 +93,7 @@ class GPTProcessor:
             "date": "{current_date}",
             "type": "expense",
             "description": "Lunch (converted from $20 USD)",
-            "amount": 3100.00,
+            "amount": {20 * self.exchange_rate},
             "original_currency": "USD"
         }}
 

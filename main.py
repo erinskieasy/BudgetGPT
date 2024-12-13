@@ -45,8 +45,22 @@ st.markdown(pwa_code, unsafe_allow_html=True)
 
 st.title("GPT Budget Tracker")
 
+# Sidebar configuration
+with st.sidebar:
+    st.title("Settings")
+    exchange_rate = st.number_input(
+        "USD to JMD Exchange Rate",
+        min_value=100.0,
+        max_value=200.0,
+        value=155.0,
+        step=0.1,
+        help="Set the exchange rate for USD to JMD conversion"
+    )
+
 # Initialize components
 transaction_manager, gpt_processor = init_components()
+# Update exchange rate in GPT processor
+gpt_processor.set_exchange_rate(exchange_rate)
 
 # Get financial stats
 stats = transaction_manager.get_summary_stats()
