@@ -79,6 +79,9 @@ stats = transaction_manager.get_summary_stats()
 st.subheader("Transaction History")
 df = transaction_manager.get_transactions_df()
 
+# Initialize filtered dataframe
+filtered_df = df.copy()
+
 # Display transactions if available
 if not df.empty:
     # Create editable columns
