@@ -14,7 +14,7 @@ from serve_static import serve_static_files
 def init_components():
     db = Database()
     gpt = GPTProcessor()
-    return TransactionManager(db), gpt
+    return TransactionManager(db), gpt, db
 
 # Page configuration and PWA setup
 st.set_page_config(page_title="GPT Budget Tracker", layout="wide")
@@ -48,22 +48,30 @@ st.title("GPT Budget Tracker")
 # Sidebar configuration
 with st.sidebar:
     st.title("Settings")
-    # Initialize session state for exchange rate if not present
+    # Get current exchange rate from database
+    current_rate = float(db.get_setting('exchange_rate') or 155.0)
+    
+    # Initialize session state with database value
     if 'exchange_rate' not in st.session_state:
-        st.session_state.exchange_rate = 155.0
+        st.session_state.exchange_rate = current_rate
     
     exchange_rate = st.number_input(
         "USD to JMD Exchange Rate",
         min_value=100.0,
         max_value=200.0,
-        value=st.session_state.exchange_rate,
+        value=current_rate,
         step=0.1,
         help="Set the exchange rate for USD to JMD conversion",
-        key='exchange_rate'  # This automatically updates session_state.exchange_rate
+        key='exchange_rate'
     )
+    
+    # Update database if rate changes
+    if exchange_rate != current_rate:
+        db.update_setting('exchange_rate', exchange_rate)
+        st.session_state.exchange_rate = exchange_rate
 
 # Initialize components
-transaction_manager, gpt_processor = init_components()
+transaction_manager, gpt_processor, db = init_components()
 # Update exchange rate in GPT processor
 gpt_processor.set_exchange_rate(exchange_rate)
 

@@ -52,6 +52,7 @@ class Database:
             try:
                 self.ensure_connection()
                 with self.conn.cursor() as cur:
+                    # Create transactions table
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS transactions (
                             id SERIAL PRIMARY KEY,
@@ -62,6 +63,23 @@ class Database:
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         );
                     """)
+                    
+                    # Create settings table
+                    cur.execute("""
+                        CREATE TABLE IF NOT EXISTS settings (
+                            key VARCHAR(50) PRIMARY KEY,
+                            value TEXT NOT NULL,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        );
+                    """)
+                    
+                    # Insert default exchange rate if not exists
+                    cur.execute("""
+                        INSERT INTO settings (key, value)
+                        VALUES ('exchange_rate', '155.0')
+                        ON CONFLICT (key) DO NOTHING;
+                    """)
+                    
                 self.conn.commit()
                 return
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
@@ -151,6 +169,44 @@ class Database:
                 self.connect()
 
     def delete_transaction(self, transaction_id):
+    def get_setting(self, key):
+        """Get a setting value by key with retry logic"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT value FROM settings
+                        WHERE key = %s;
+                    """, (key,))
+                    result = cur.fetchone()
+                    return result[0] if result else None
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception(f"Failed to get setting {key}") from e
+                self.connect()
+
+    def update_setting(self, key, value):
+        """Update a setting value by key with retry logic"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE settings 
+                        SET value = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE key = %s
+                        RETURNING key;
+                    """, (str(value), key))
+                    self.conn.commit()
+                    return cur.fetchone() is not None
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception(f"Failed to update setting {key}") from e
+                self.connect()
+
         """Delete a transaction by ID with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
