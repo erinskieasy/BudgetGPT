@@ -169,19 +169,41 @@ if input_method == "Text Input":
         with st.spinner("Processing input..."):
             try:
                 result = gpt_processor.process_text_input(text_input)
-                if isinstance(result, dict) and result.get("action") == "delete":
-                    # Handle deletion request
-                    results = transaction_manager.delete_transactions(result["transaction_ids"])
+                if isinstance(result, dict) and result.get("is_deletion"):
+                    deletion_type = result.get("deletion_type")
+                    ids_to_delete = []
                     
-                    # Show results
-                    successful = [r["id"] for r in results if r["success"]]
-                    failed = [(r["id"], r["error"]) for r in results if not r["success"]]
+                    if deletion_type == "specific_ids":
+                        ids_to_delete = result.get("transaction_ids", [])
+                    elif deletion_type == "last_n":
+                        n = result.get("n", 1)  # Default to 1 if not specified
+                        ids_to_delete = db.get_latest_transaction_ids(limit=n)
+                    elif deletion_type == "first_n":
+                        n = result.get("n", 1)  # Default to 1 if not specified
+                        ids_to_delete = list(reversed(db.get_latest_transaction_ids()))[:n]
+                    elif deletion_type == "all":
+                        ids_to_delete = db.get_latest_transaction_ids()
+                    elif deletion_type == "all_except_last_n":
+                        n = result.get("n", 1)  # Default to 1 if not specified
+                        all_ids = db.get_latest_transaction_ids()
+                        ids_to_delete = all_ids[n:]
+                    elif deletion_type == "all_except_ids":
+                        except_ids = set(result.get("transaction_ids", []))
+                        all_ids = db.get_latest_transaction_ids()
+                        ids_to_delete = [id for id in all_ids if id not in except_ids]
                     
-                    if successful:
-                        st.success(f"Successfully deleted transactions: {', '.join(map(str, successful))}")
-                    if failed:
-                        st.error("Failed to delete some transactions:\n" + 
-                                "\n".join(f"ID {id}: {error}" for id, error in failed))
+                    if ids_to_delete:
+                        results = transaction_manager.delete_transactions(ids_to_delete)
+                        successful = [r["id"] for r in results if r["success"]]
+                        failed = [(r["id"], r["error"]) for r in results if not r["success"]]
+                        
+                        if successful:
+                            st.success(f"Successfully deleted {len(successful)} transaction(s)")
+                        if failed:
+                            st.error("Failed to delete some transactions:\n" + 
+                                    "\n".join(f"ID {id}: {error}" for id, error in failed))
+                    else:
+                        st.warning("No transactions found to delete")
                 else:
                     # Handle multiple transactions
                     transactions = result.get("transactions", [result])

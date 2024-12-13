@@ -19,19 +19,38 @@ class GPTProcessor:
     def process_text_input(self, text):
         # Check if it's a deletion request
         delete_prompt = f"""
-        Determine if this is a request to delete transactions and extract all transaction IDs mentioned.
-        Examples of delete requests:
-        - "Delete transaction 1"
-        - "Remove items 5, 7 and 9"
-        - "Delete transactions number 11, 13 and 5"
-        - "Delete the first transaction"
+        Analyze if this is a request to delete transactions and determine the deletion parameters.
+        
+        Examples of delete requests and their interpretations:
+        1. "Delete transaction 1" 
+           → specific ID deletion
+        2. "Remove items 5, 7 and 9" 
+           → multiple specific IDs deletion
+        3. "Delete the last 3 transactions" 
+           → last N transactions deletion
+        4. "Delete all transactions" 
+           → all transactions deletion
+        5. "Delete the first transaction" 
+           → first transaction deletion
+        6. "Delete transactions number 11, 13 and 5" 
+           → multiple specific IDs deletion
+        7. "Delete all transactions except the last one" 
+           → all except last N deletion
+        8. "Remove all except number 5, 7 and 10" 
+           → all except specific IDs deletion
+        9. "Delete the last 3" 
+           → last N transactions deletion
+        10. "Remove all except the last 3" 
+           → all except last N deletion
         
         Text: {text}
         
         Return JSON in this format:
         {{
             "is_deletion": true/false,
-            "transaction_ids": [list of numbers] or []
+            "deletion_type": "specific_ids" | "last_n" | "first_n" | "all" | "all_except_last_n" | "all_except_ids" | null,
+            "transaction_ids": [list of specific IDs] or [],
+            "n": number or null (for last_n, first_n, or all_except_last_n types)
         }}
         """
 

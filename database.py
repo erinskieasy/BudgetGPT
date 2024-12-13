@@ -168,6 +168,29 @@ class Database:
                     raise Exception("Failed to update transaction") from e
                 self.connect()
 
+    def get_latest_transaction_ids(self, limit=None):
+        """Get the IDs of the latest transactions, ordered by date"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    query = """
+                        SELECT id FROM transactions
+                        ORDER BY date DESC, id DESC
+                    """
+                    if limit:
+                        query += " LIMIT %s"
+                        cur.execute(query, (limit,))
+                    else:
+                        cur.execute(query)
+                    results = cur.fetchall()
+                    return [r[0] for r in results]
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to get latest transaction IDs") from e
+                self.connect()
+
     def get_setting(self, key):
         """Get a setting value by key with retry logic"""
         max_retries = 3
