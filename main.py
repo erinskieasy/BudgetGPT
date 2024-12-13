@@ -139,18 +139,55 @@ if not df.empty:
 else:
     st.info("No transactions recorded yet")
 
+# Quick Filters
+with st.expander("Quick Filters", expanded=True):
+    col1, col2 = st.columns(2)
+    with col1:
+        filter_column = st.selectbox(
+            "Filter by column",
+            ["None", "type", "description", "amount"],
+            key="filter_column"
+        )
+    with col2:
+        filter_text = st.text_input(
+            "Search term",
+            key="filter_text",
+            placeholder="Enter search term..."
+        )
+
+# Apply filters to the dataframe
+if not df.empty and filter_column != "None" and filter_text:
+    if filter_column == "amount":
+        try:
+            filter_value = float(filter_text)
+            df = df[df[filter_column] == filter_value]
+        except ValueError:
+            st.warning("Please enter a valid number for amount filter")
+    else:
+        df = df[df[filter_column].astype(str).str.contains(filter_text, case=False)]
+    
+    # Recalculate stats based on filtered data
+    filtered_stats = {
+        'total_expenses': df[df['type'] == 'expense']['amount'].sum(),
+        'total_subscriptions': df[df['type'] == 'subscription']['amount'].sum(),
+        'current_balance': df[df['type'] == 'income']['amount'].sum() - 
+                         (df[df['type'].isin(['expense', 'subscription'])]['amount'].sum())
+    }
+else:
+    filtered_stats = stats
+
 # Financial summary in columns
 col1, col2, col3 = st.columns(3)
 with col1:
     st.metric(
         "Current Balance",
-        f"${stats['current_balance']:.2f}",
+        f"${filtered_stats['current_balance']:.2f}",
         delta=None
     )
 with col2:
-    st.metric("Total Expenses", f"${stats['total_expenses']:.2f}")
+    st.metric("Total Expenses", f"${filtered_stats['total_expenses']:.2f}")
 with col3:
-    st.metric("Total Subscriptions", f"${stats['total_subscriptions']:.2f}")
+    st.metric("Total Subscriptions", f"${filtered_stats['total_subscriptions']:.2f}")
 
 # Input section below transaction table
 # st.subheader("Add Transaction")
