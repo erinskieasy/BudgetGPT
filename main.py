@@ -192,11 +192,14 @@ def reset_filter_form():
     st.session_state['saved_filter'] = "None"
 
 def on_filter_change():
+    """Reset filter text when column changes to None"""
     if st.session_state.filter_column == "None":
         st.session_state['filter_text'] = ""
         st.session_state['filter_name'] = ""
+        st.session_state['saved_filter'] = "None"
 
 def on_saved_filter_change():
+    """Update filter state when saved filter changes"""
     if st.session_state.saved_filter == "None":
         reset_filter_form()
     else:
@@ -206,7 +209,6 @@ def on_saved_filter_change():
         filter_data = saved_filters[selected_idx]
         st.session_state.filter_column = filter_data['filter_column']
         st.session_state.filter_text = filter_data['filter_text']
-    st.rerun()
 
 # Quick Filters
 with st.expander("Quick Filters", expanded=True):
@@ -246,8 +248,7 @@ with st.expander("Quick Filters", expanded=True):
             "Search term",
             key="filter_text",
             placeholder="Enter search term...",
-            disabled=st.session_state.filter_column == "None",
-            on_change=lambda: st.rerun()
+            disabled=st.session_state.filter_column == "None"
         )
     
     # Save current filter (only show when no saved filter is selected)
