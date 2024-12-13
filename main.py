@@ -22,6 +22,21 @@ st.set_page_config(page_title="GPT Budget Tracker", layout="wide")
 # Serve static files for PWA
 serve_static_files()
 
+# Initialize session state for filters
+if 'filter_column' not in st.session_state:
+    st.session_state['filter_column'] = "None"
+if 'filter_text' not in st.session_state:
+    st.session_state['filter_text'] = ""
+if 'filter_name' not in st.session_state:
+    st.session_state['filter_name'] = ""
+if 'saved_filter' not in st.session_state:
+    st.session_state['saved_filter'] = "None"
+
+def reset_filter_form():
+    st.session_state['filter_column'] = "None"
+    st.session_state['filter_text'] = ""
+    st.session_state['filter_name'] = ""
+
 # Inject PWA components
 pwa_code = """
     <link rel="manifest" href="/manifest.json">
@@ -73,10 +88,9 @@ with st.sidebar:
         gpt_processor.set_exchange_rate(current_rate)
 
 # Get transactions based on current filter
-df = transaction_manager.get_filtered_transactions_df(
-    st.session_state.filter_column,
-    st.session_state.filter_text
-)
+filter_column = st.session_state.get('filter_column', 'None')
+filter_text = st.session_state.get('filter_text', '')
+df = transaction_manager.get_filtered_transactions_df(filter_column, filter_text)
 
 # Transaction history table and export options
 st.subheader("Transaction History")
@@ -148,16 +162,18 @@ else:
 
 # Initialize session state for filters
 if 'filter_column' not in st.session_state:
-    st.session_state.filter_column = "None"
+    st.session_state['filter_column'] = "None"
 if 'filter_text' not in st.session_state:
-    st.session_state.filter_text = ""
+    st.session_state['filter_text'] = ""
 if 'filter_name' not in st.session_state:
-    st.session_state.filter_name = ""
+    st.session_state['filter_name'] = ""
+if 'saved_filter' not in st.session_state:
+    st.session_state['saved_filter'] = "None"
 
 def reset_filter_form():
-    st.session_state.filter_column = "None"
-    st.session_state.filter_text = ""
-    st.session_state.filter_name = ""
+    st.session_state['filter_column'] = "None"
+    st.session_state['filter_text'] = ""
+    st.session_state['filter_name'] = ""
 
 def on_filter_change():
     if st.session_state.filter_column == "None":
