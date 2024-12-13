@@ -182,12 +182,12 @@ def reset_filter_form():
 def on_filter_change():
     if st.session_state.filter_column == "None":
         st.session_state['filter_text'] = ""
-        st.rerun()
+    st.rerun()
 
 def on_saved_filter_change():
     if st.session_state.saved_filter == "None":
         reset_filter_form()
-        st.rerun()
+    st.rerun()
 
 # Quick Filters
 with st.expander("Quick Filters", expanded=True):
@@ -255,25 +255,8 @@ with st.expander("Quick Filters", expanded=True):
                     st.session_state.filter_text = ""
                     st.rerun()
 
-# Apply filters to the dataframe
-filtered_df = df.copy()
-if not df.empty and filter_column != "None" and filter_text:
-    if filter_column == "amount":
-        try:
-            filter_value = float(filter_text)
-            filtered_df = filtered_df[filtered_df[filter_column] == filter_value]
-        except ValueError:
-            st.warning("Please enter a valid number for amount filter")
-    else:
-        filtered_df = filtered_df[filtered_df[filter_column].astype(str).str.contains(filter_text, case=False)]
-    
-    # Calculate stats based on filtered data
-filtered_stats = {
-    'total_expenses': filtered_df[filtered_df['type'] == 'expense']['amount'].sum(),
-    'total_subscriptions': filtered_df[filtered_df['type'] == 'subscription']['amount'].sum(),
-    'current_balance': filtered_df[filtered_df['type'] == 'income']['amount'].sum() - 
-                     (filtered_df[filtered_df['type'].isin(['expense', 'subscription'])]['amount'].sum())
-} if not filtered_df.empty else stats
+# Financial metrics are now calculated directly from the filtered df earlier in the code
+filtered_stats = stats  # Using the stats calculated from the filtered df
 
 # Financial summary in columns
 col1, col2, col3 = st.columns(3)
