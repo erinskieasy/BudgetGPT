@@ -108,29 +108,31 @@ class Database:
             try:
                 self.ensure_connection()
                 with self.conn.cursor() as cur:
+                    query = """
+                        SELECT id, date, type, description, amount
+                        FROM transactions
+                    """
+                    
                     if column == "amount":
-                        cur.execute("""
-                            SELECT id, date, type, description, amount
-                            FROM transactions
-                            WHERE amount = %s
-                            ORDER BY date DESC, created_at DESC
-                        """, (float(value),))
+                        try:
+                            float_value = float(value)
+                            query += " WHERE amount = %s"
+                            params = (float_value,)
+                        except ValueError:
+                            # Invalid amount, return empty result
+                            return []
+                    elif column == "type":
+                        query += " WHERE LOWER(type) LIKE LOWER(%s)"
+                        params = (f"%{value}%",)
+                    elif column == "description":
+                        query += " WHERE LOWER(description) LIKE LOWER(%s)"
+                        params = (f"%{value}%",)
                     else:
-                        # Build query safely based on column
-                        if column == "type":
-                            cur.execute("""
-                                SELECT id, date, type, description, amount
-                                FROM transactions
-                                WHERE LOWER(type) LIKE LOWER(%s)
-                                ORDER BY date DESC, created_at DESC
-                            """, (f"%{value}%",))
-                        elif column == "description":
-                            cur.execute("""
-                                SELECT id, date, type, description, amount
-                                FROM transactions
-                                WHERE LOWER(description) LIKE LOWER(%s)
-                                ORDER BY date DESC, created_at DESC
-                            """, (f"%{value}%",))
+                        # Invalid column, return all transactions
+                        params = tuple()
+                    
+                    query += " ORDER BY date DESC, created_at DESC"
+                    cur.execute(query, params)
                     
                     columns = ['id', 'date', 'type', 'description', 'amount']
                     results = cur.fetchall()
@@ -139,6 +141,11 @@ class Database:
                 if attempt == max_retries - 1:
                     raise Exception("Failed to get filtered transactions") from e
                 self.connect()
+            except Exception as e:
+                # Log any other errors and return empty result
+                print(f"Error in filter_transactions: {str(e)}")
+                return []
+        return []  # Return empty list if all retries failed
 
 
     def get_transactions(self):

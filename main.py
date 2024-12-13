@@ -95,11 +95,24 @@ df = transaction_manager.get_filtered_transactions_df(filter_column, filter_text
 # Transaction history table and export options
 st.subheader("Transaction History")
 
-# Initialize filtered dataframe
-filtered_df = df.copy()
-
-# Get stats based on filtered data
-stats = transaction_manager.get_summary_stats()
+# Calculate stats based on filtered data
+if df.empty:
+    stats = {
+        'total_expenses': 0,
+        'total_subscriptions': 0,
+        'current_balance': 0,
+        'monthly_breakdown': {}
+    }
+else:
+    stats = {
+        'total_expenses': df[df['type'] == 'expense']['amount'].sum(),
+        'total_subscriptions': df[df['type'] == 'subscription']['amount'].sum(),
+        'current_balance': (
+            df[df['type'] == 'income']['amount'].sum() -
+            df[df['type'].isin(['expense', 'subscription'])]['amount'].sum()
+        ),
+        'monthly_breakdown': df.groupby(pd.to_datetime(df['date']).dt.strftime('%Y-%m'))['amount'].sum().to_dict()
+    }
 
 # Display transactions if available
 if not df.empty:
