@@ -101,6 +101,45 @@ class Database:
                 if attempt == max_retries - 1:
                     raise Exception("Failed to add transaction") from e
                 self.connect()
+    def filter_transactions(self, column, value):
+        """Get filtered transactions with retry logic"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    if column == "amount":
+                        cur.execute("""
+                            SELECT id, date, type, description, amount
+                            FROM transactions
+                            WHERE amount = %s
+                            ORDER BY date DESC, created_at DESC
+                        """, (float(value),))
+                    else:
+                        # Build query safely based on column
+                        if column == "type":
+                            cur.execute("""
+                                SELECT id, date, type, description, amount
+                                FROM transactions
+                                WHERE LOWER(type) LIKE LOWER(%s)
+                                ORDER BY date DESC, created_at DESC
+                            """, (f"%{value}%",))
+                        elif column == "description":
+                            cur.execute("""
+                                SELECT id, date, type, description, amount
+                                FROM transactions
+                                WHERE LOWER(description) LIKE LOWER(%s)
+                                ORDER BY date DESC, created_at DESC
+                            """, (f"%{value}%",))
+                    
+                    columns = ['id', 'date', 'type', 'description', 'amount']
+                    results = cur.fetchall()
+                    return [dict(zip(columns, row)) for row in results]
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to get filtered transactions") from e
+                self.connect()
+
 
     def get_transactions(self):
         """Get all transactions with retry logic"""

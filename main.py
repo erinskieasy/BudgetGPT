@@ -72,15 +72,20 @@ with st.sidebar:
         # Always ensure GPT processor has current rate
         gpt_processor.set_exchange_rate(current_rate)
 
-# Get financial stats
-stats = transaction_manager.get_summary_stats()
+# Get transactions based on current filter
+df = transaction_manager.get_filtered_transactions_df(
+    st.session_state.filter_column,
+    st.session_state.filter_text
+)
 
 # Transaction history table and export options
 st.subheader("Transaction History")
-df = transaction_manager.get_transactions_df()
 
 # Initialize filtered dataframe
 filtered_df = df.copy()
+
+# Get stats based on filtered data
+stats = transaction_manager.get_summary_stats()
 
 # Display transactions if available
 if not df.empty:
@@ -116,7 +121,6 @@ if not df.empty:
                 "Description",
                 help="Transaction description",
                 width=150,
-                disabled=True,
             ),
         },
         hide_index=True,

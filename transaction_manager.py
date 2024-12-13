@@ -30,6 +30,19 @@ class TransactionManager:
         df = pd.DataFrame(transactions)
         df['date'] = pd.to_datetime(df['date']).dt.date
         return df
+    def get_filtered_transactions_df(self, filter_column=None, filter_text=None):
+        """Get transactions with optional filtering"""
+        if not filter_column or filter_column == "None" or not filter_text:
+            return self.get_transactions_df()
+        
+        transactions = self.db.filter_transactions(filter_column, filter_text)
+        if not transactions:
+            return pd.DataFrame(columns=['date', 'type', 'description', 'amount'])
+        
+        df = pd.DataFrame(transactions)
+        df['date'] = pd.to_datetime(df['date']).dt.date
+        return df
+
 
     def update_transaction_field(self, transaction_id, field, value):
         """Update a specific field of a transaction."""
