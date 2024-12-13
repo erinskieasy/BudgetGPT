@@ -205,28 +205,7 @@ with st.expander("Quick Filters", expanded=True):
                 placeholder="Enter a name to save this filter..."
             )
         with save_col2:
-            if st.button("Save Filter"):
-                if not filter_name:
-                    st.error("Please enter a name for the filter")
-                else:
-                    db.save_filter(filter_name, filter_column, filter_text)
-                    st.success(f"Filter '{filter_name}' saved!")
-                    st.session_state.filter_name = ""
-                    st.session_state.filter_column = "None"
-                    st.session_state.filter_text = ""
-                    st.rerun()
-    
-    # Save current filter
-    if filter_column != "None" and filter_text:
-        save_col1, save_col2 = st.columns([3, 1])
-        with save_col1:
-            filter_name = st.text_input(
-                "Filter name",
-                placeholder="Enter a name to save this filter...",
-                key="filter_name"
-            )
-        with save_col2:
-            if st.button("Save Filter"):
+            if st.button("Save Filter", key="save_filter_button"):
                 if not filter_name:
                     st.error("Please enter a name for the filter")
                 else:
