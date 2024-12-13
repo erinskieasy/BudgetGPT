@@ -96,32 +96,35 @@ with st.sidebar:
         # Always ensure GPT processor has current rate
         gpt_processor.set_exchange_rate(current_rate)
 
-# Get transactions based on current filter
+# Initialize state if not exists
+if 'filter_column' not in st.session_state:
+    st.session_state['filter_column'] = "None"
+if 'filter_text' not in st.session_state:
+    st.session_state['filter_text'] = ""
+if 'filter_name' not in st.session_state:
+    st.session_state['filter_name'] = ""
+if 'saved_filter' not in st.session_state:
+    st.session_state['saved_filter'] = "None"
+
+# Get all transactions first for total metrics
+all_df = transaction_manager.get_transactions_df()
+stats = {
+    'total_expenses': all_df[all_df['type'] == 'expense']['amount'].sum() if not all_df.empty else 0,
+    'total_subscriptions': all_df[all_df['type'] == 'subscription']['amount'].sum() if not all_df.empty else 0,
+    'current_balance': (
+        all_df[all_df['type'] == 'income']['amount'].sum() -
+        all_df[all_df['type'].isin(['expense', 'subscription'])]['amount'].sum()
+    ) if not all_df.empty else 0,
+    'monthly_breakdown': all_df.groupby(pd.to_datetime(all_df['date']).dt.strftime('%Y-%m'))['amount'].sum().to_dict() if not all_df.empty else {}
+}
+
+# Get filtered transactions for display
 filter_column = st.session_state.get('filter_column', 'None')
 filter_text = st.session_state.get('filter_text', '')
 df = transaction_manager.get_filtered_transactions_df(filter_column, filter_text)
 
 # Transaction history table and export options
 st.subheader("Transaction History")
-
-# Calculate stats based on filtered data
-if df.empty:
-    stats = {
-        'total_expenses': 0,
-        'total_subscriptions': 0,
-        'current_balance': 0,
-        'monthly_breakdown': {}
-    }
-else:
-    stats = {
-        'total_expenses': df[df['type'] == 'expense']['amount'].sum(),
-        'total_subscriptions': df[df['type'] == 'subscription']['amount'].sum(),
-        'current_balance': (
-            df[df['type'] == 'income']['amount'].sum() -
-            df[df['type'].isin(['expense', 'subscription'])]['amount'].sum()
-        ),
-        'monthly_breakdown': df.groupby(pd.to_datetime(df['date']).dt.strftime('%Y-%m'))['amount'].sum().to_dict()
-    }
 
 # Display transactions if available
 if not df.empty:
@@ -191,11 +194,18 @@ def reset_filter_form():
 def on_filter_change():
     if st.session_state.filter_column == "None":
         st.session_state['filter_text'] = ""
-    st.rerun()
+        st.session_state['filter_name'] = ""
 
 def on_saved_filter_change():
     if st.session_state.saved_filter == "None":
         reset_filter_form()
+    else:
+        saved_filters = db.get_saved_filters()
+        selected_filter = st.session_state.saved_filter
+        selected_idx = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters].index(selected_filter)
+        filter_data = saved_filters[selected_idx]
+        st.session_state.filter_column = filter_data['filter_column']
+        st.session_state.filter_text = filter_data['filter_text']
     st.rerun()
 
 # Quick Filters
@@ -204,23 +214,22 @@ with st.expander("Quick Filters", expanded=True):
     saved_filters = db.get_saved_filters()
     if saved_filters:
         st.subheader("Saved Filters")
-        selected_filter = st.selectbox(
+        st.selectbox(
             "Select a saved filter",
             ["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters],
             key="saved_filter",
             on_change=on_saved_filter_change
         )
         
-        if selected_filter != "None":
-            selected_idx = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters].index(selected_filter)
+        if st.session_state.saved_filter != "None":
+            selected_idx = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters].index(st.session_state.saved_filter)
             filter_data = saved_filters[selected_idx]
-            st.session_state.filter_column = filter_data['filter_column']
-            st.session_state.filter_text = filter_data['filter_text']
             
             # Delete filter button
             if st.button(f"Delete '{filter_data['name']}'"):
                 if db.delete_saved_filter(filter_data['id']):
                     st.success("Filter deleted successfully!")
+                    reset_filter_form()
                     st.rerun()
     
     # Filter inputs
@@ -233,14 +242,13 @@ with st.expander("Quick Filters", expanded=True):
             on_change=on_filter_change
         )
     with col2:
-        if st.text_input(
+        st.text_input(
             "Search term",
             key="filter_text",
             placeholder="Enter search term...",
             disabled=st.session_state.filter_column == "None",
             on_change=lambda: st.rerun()
-        ):
-            st.rerun()
+        )
     
     # Save current filter (only show when no saved filter is selected)
     if filter_column != "None" and filter_text and st.session_state.saved_filter == "None":
