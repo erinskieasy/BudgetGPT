@@ -45,6 +45,9 @@ st.markdown(pwa_code, unsafe_allow_html=True)
 
 st.title("GPT Budget Tracker")
 
+# Initialize components
+transaction_manager, gpt_processor, db = init_components()
+
 # Sidebar configuration
 with st.sidebar:
     st.title("Settings")
@@ -69,9 +72,6 @@ with st.sidebar:
     if exchange_rate != current_rate:
         db.update_setting('exchange_rate', exchange_rate)
         st.session_state.exchange_rate = exchange_rate
-
-# Initialize components
-transaction_manager, gpt_processor, db = init_components()
 # Update exchange rate in GPT processor
 gpt_processor.set_exchange_rate(exchange_rate)
 
