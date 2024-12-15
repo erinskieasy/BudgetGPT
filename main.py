@@ -212,31 +212,6 @@ def on_saved_filter_change():
 
 # Quick Filters
 with st.expander("Quick Filters", expanded=True):
-    # Quick Filter Buttons
-    st.subheader("Quick Access Filters")
-    quick_filter_cols = st.columns(4)
-    
-    with quick_filter_cols[0]:
-        if st.button("📈 Income"):
-            st.session_state.filter_column = "type"
-            st.session_state.filter_text = "income"
-            
-    with quick_filter_cols[1]:
-        if st.button("📉 Expenses"):
-            st.session_state.filter_column = "type"
-            st.session_state.filter_text = "expense"
-            
-    with quick_filter_cols[2]:
-        if st.button("🔄 Subscriptions"):
-            st.session_state.filter_column = "type"
-            st.session_state.filter_text = "subscription"
-            
-    with quick_filter_cols[3]:
-        if st.button("❌ Clear Filters"):
-            reset_filter_form()
-
-    st.divider()
-    
     # Saved Filters Section
     saved_filters = db.get_saved_filters()
     if saved_filters:
