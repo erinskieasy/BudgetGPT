@@ -186,29 +186,31 @@ else:
     st.info("No transactions recorded yet")
 
 def reset_filter_form():
+    """Reset all filter-related session state variables"""
     st.session_state['filter_column'] = "None"
     st.session_state['filter_text'] = ""
     st.session_state['filter_name'] = ""
     st.session_state['saved_filter'] = "None"
 
-def on_filter_change():
-    """Reset filter text when column changes to None"""
-    if st.session_state.filter_column == "None":
-        st.session_state['filter_text'] = ""
-        st.session_state['filter_name'] = ""
-        st.session_state['saved_filter'] = "None"
-
-def on_saved_filter_change():
-    """Update filter state when saved filter changes"""
-    if st.session_state.saved_filter == "None":
-        reset_filter_form()
-    else:
+def handle_saved_filter_change():
+    """Handle when a saved filter is selected"""
+    if st.session_state.saved_filter != "None":
         saved_filters = db.get_saved_filters()
-        selected_filter = st.session_state.saved_filter
-        selected_idx = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters].index(selected_filter)
-        filter_data = saved_filters[selected_idx]
-        st.session_state.filter_column = filter_data['filter_column']
-        st.session_state.filter_text = filter_data['filter_text']
+        filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
+        if st.session_state.saved_filter in filter_options:
+            selected_idx = filter_options.index(st.session_state.saved_filter)
+            filter_data = saved_filters[selected_idx]
+            st.session_state.filter_column = filter_data['filter_column']
+            st.session_state.filter_text = filter_data['filter_text']
+    else:
+        reset_filter_form()
+
+def handle_filter_column_change():
+    """Handle when the filter column changes"""
+    if st.session_state.filter_column == "None":
+        st.session_state.filter_text = ""
+        st.session_state.filter_name = ""
+        st.session_state.saved_filter = "None"
 
 # Quick Filters
 with st.expander("Quick Filters", expanded=True):
@@ -216,11 +218,12 @@ with st.expander("Quick Filters", expanded=True):
     saved_filters = db.get_saved_filters()
     if saved_filters:
         st.subheader("Saved Filters")
+        filter_options = ["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
         st.selectbox(
             "Select a saved filter",
-            ["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters],
+            filter_options,
             key="saved_filter",
-            on_change=on_saved_filter_change
+            on_change=handle_saved_filter_change
         )
         
         if st.session_state.saved_filter != "None":
@@ -232,7 +235,6 @@ with st.expander("Quick Filters", expanded=True):
                 if db.delete_saved_filter(filter_data['id']):
                     st.success("Filter deleted successfully!")
                     reset_filter_form()
-                    st.rerun()
     
     # Filter inputs
     col1, col2 = st.columns([1, 2])
@@ -241,7 +243,7 @@ with st.expander("Quick Filters", expanded=True):
             "Filter by column",
             ["None", "type", "description", "amount"],
             key="filter_column",
-            on_change=on_filter_change
+            on_change=handle_filter_column_change
         )
     with col2:
         st.text_input(
