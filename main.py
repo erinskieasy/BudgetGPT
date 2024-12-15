@@ -279,7 +279,7 @@ with st.expander("Quick Filters", expanded=True):
 filtered_stats = stats  # Using the stats calculated from the filtered df
 
 # Financial summary in columns
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.metric(
         "Current Balance",
@@ -290,6 +290,10 @@ with col2:
     st.metric("Total Expenses", f"${filtered_stats['total_expenses']:.2f}")
 with col3:
     st.metric("Total Subscriptions", f"${filtered_stats['total_subscriptions']:.2f}")
+with col4:
+    # Calculate filtered balance only if a filter is applied
+    filtered_balance = df['amount'].sum() if not df.empty and (filter_column != "None" or filter_text) else 0
+    st.metric("Filter Balance", f"${filtered_balance:.2f}")
 
 # Input section below transaction table
 # st.subheader("Add Transaction")
