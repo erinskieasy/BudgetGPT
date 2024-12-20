@@ -1,314 +1,87 @@
 import os
 import psycopg2
 from datetime import datetime
+import pandas as pd
 
 class Database:
     def __init__(self):
-        """Initialize database connection"""
         self.conn = None
         self.connect()
+        self.setup_tables()
 
     def connect(self):
-        """Connect to PostgreSQL database"""
-        try:
-            self.conn = psycopg2.connect(os.environ['DATABASE_URL'])
-            # Create tables if they don't exist
-            self.create_tables()
-        except Exception as e:
-            print(f"Error connecting to database: {e}")
-            raise
+        """Connect to the PostgreSQL database with retry logic"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                if self.conn is not None:
+                    try:
+                        self.conn.close()
+                    except:
+                        pass
+                
+                self.conn = psycopg2.connect(os.environ['DATABASE_URL'])
+                self.conn.autocommit = False
+                return
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to connect to database") from e
 
     def ensure_connection(self):
         """Ensure database connection is active"""
         try:
-            # Try to execute a simple query to test connection
+            # Try a simple query to test connection
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1")
         except (psycopg2.OperationalError, psycopg2.InterfaceError):
             self.connect()
 
-    def create_tables(self):
-        """Create necessary database tables"""
-        with self.conn.cursor() as cur:
-            # Create users table
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    username VARCHAR(255) UNIQUE NOT NULL,
-                    password_hash VARCHAR(255) NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
-            # Create transactions table
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS transactions (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER REFERENCES users(id),
-                    type VARCHAR(50) NOT NULL,
-                    amount DECIMAL(10, 2) NOT NULL,
-                    description TEXT,
-                    date DATE NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
-            # Create saved_filters table with sharing support
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS saved_filters (
-                    id SERIAL PRIMARY KEY,
-                    name VARCHAR(255) NOT NULL,
-                    filter_column VARCHAR(50) NOT NULL,
-                    filter_text TEXT NOT NULL,
-                    user_id INTEGER REFERENCES users(id),
-                    owner_id INTEGER REFERENCES users(id),
-                    is_shared BOOLEAN DEFAULT FALSE,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
-            # Create filter_sharing table for invitation management
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS filter_sharing (
-                    id SERIAL PRIMARY KEY,
-                    filter_id INTEGER REFERENCES saved_filters(id),
-                    shared_with_id INTEGER REFERENCES users(id),
-                    status VARCHAR(20) DEFAULT 'pending',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(filter_id, shared_with_id)
-                )
-            """)
-
-            # Create settings table
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS settings (
-                    key VARCHAR(255) PRIMARY KEY,
-                    value TEXT,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-
-            self.conn.commit()
-
-    def share_filter(self, filter_id, owner_id, shared_with_username):
-        """Share a filter with another user"""
+    def setup_tables(self):
+        """Initialize database tables with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 self.ensure_connection()
                 with self.conn.cursor() as cur:
-                    # First, verify filter ownership
+                    # Create transactions table
                     cur.execute("""
-                        SELECT id FROM saved_filters
-                        WHERE id = %s AND owner_id = %s
-                    """, (filter_id, owner_id))
-                    if not cur.fetchone():
-                        raise Exception("Filter not found or you don't have permission to share it")
-
-                    # Get the user ID of the username to share with
-                    cur.execute("""
-                        SELECT id FROM users
-                        WHERE username = %s
-                    """, (shared_with_username,))
-                    shared_user = cur.fetchone()
-                    if not shared_user:
-                        raise Exception(f"User {shared_with_username} not found")
-
-                    shared_with_id = shared_user[0]
-                    if shared_with_id == owner_id:
-                        raise Exception("Cannot share filter with yourself")
-
-                    # Create sharing invitation
-                    cur.execute("""
-                        INSERT INTO filter_sharing (filter_id, shared_with_id)
-                        VALUES (%s, %s)
-                        ON CONFLICT (filter_id, shared_with_id) 
-                        DO UPDATE SET status = 'pending'
-                        RETURNING id;
-                    """, (filter_id, shared_with_id))
-
-                    # Mark the filter as shared
-                    cur.execute("""
-                        UPDATE saved_filters
-                        SET is_shared = TRUE
-                        WHERE id = %s
-                    """, (filter_id,))
-
-                    self.conn.commit()
-                    return True
-            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-                if attempt == max_retries - 1:
-                    raise Exception("Failed to share filter") from e
-                self.connect()
-
-    def get_pending_filter_invitations(self, user_id):
-        """Get all pending filter sharing invitations for a user"""
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                self.ensure_connection()
-                with self.conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT fs.id as invitation_id, 
-                               f.id as filter_id,
-                               f.name as filter_name,
-                               u.username as shared_by,
-                               fs.created_at
-                        FROM filter_sharing fs
-                        JOIN saved_filters f ON fs.filter_id = f.id
-                        JOIN users u ON f.owner_id = u.id
-                        WHERE fs.shared_with_id = %s 
-                        AND fs.status = 'pending'
-                        ORDER BY fs.created_at DESC
-                    """, (user_id,))
-                    columns = ['invitation_id', 'filter_id', 'filter_name', 
-                             'shared_by', 'created_at']
-                    results = cur.fetchall()
-                    return [dict(zip(columns, row)) for row in results]
-            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-                if attempt == max_retries - 1:
-                    raise Exception("Failed to get pending invitations") from e
-                self.connect()
-
-    def handle_filter_invitation(self, invitation_id, user_id, accept=True):
-        """Accept or reject a filter sharing invitation"""
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                self.ensure_connection()
-                with self.conn.cursor() as cur:
-                    # Verify invitation exists and belongs to user
-                    cur.execute("""
-                        SELECT filter_id FROM filter_sharing
-                        WHERE id = %s AND shared_with_id = %s AND status = 'pending'
-                    """, (invitation_id, user_id))
-                    if not cur.fetchone():
-                        raise Exception("Invalid invitation")
-
-                    # Update invitation status
-                    status = 'accepted' if accept else 'rejected'
-                    cur.execute("""
-                        UPDATE filter_sharing
-                        SET status = %s
-                        WHERE id = %s AND shared_with_id = %s
-                        RETURNING filter_id
-                    """, (status, invitation_id, user_id))
-
-                    self.conn.commit()
-                    return True
-            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-                if attempt == max_retries - 1:
-                    raise Exception("Failed to handle invitation") from e
-                self.connect()
-
-    def get_filter_transactions(self, filter_id, user_id):
-        """Get transactions for a specific filter, checking access rights"""
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                self.ensure_connection()
-                with self.conn.cursor() as cur:
-                    # Check if user has access to this filter
-                    cur.execute("""
-                        SELECT f.filter_column, f.filter_text, f.owner_id
-                        FROM saved_filters f
-                        LEFT JOIN filter_sharing fs ON f.id = fs.filter_id
-                        WHERE f.id = %s AND (
-                            f.owner_id = %s OR
-                            (fs.shared_with_id = %s AND fs.status = 'accepted')
+                        CREATE TABLE IF NOT EXISTS transactions (
+                            id SERIAL PRIMARY KEY,
+                            date DATE NOT NULL,
+                            type VARCHAR(50) NOT NULL,
+                            description TEXT,
+                            amount DECIMAL(10,2) NOT NULL,
+                            user_id INTEGER,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         )
-                    """, (filter_id, user_id, user_id))
-
-                    filter_data = cur.fetchone()
-                    if not filter_data:
-                        raise Exception("Filter not found or access denied")
-
-                    filter_column, filter_text, owner_id = filter_data
-
-                    # Get filtered transactions using the owner's user_id
-                    return self.filter_transactions(filter_column, filter_text, owner_id)
-            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-                if attempt == max_retries - 1:
-                    raise Exception("Failed to get filter transactions") from e
-                self.connect()
-
-    def save_filter(self, name, filter_column, filter_text, user_id):
-        """Save a filter for future use"""
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                self.ensure_connection()
-                with self.conn.cursor() as cur:
+                    """)
+                    
+                    # Create settings table
                     cur.execute("""
-                        INSERT INTO saved_filters (name, filter_column, filter_text, user_id, owner_id, is_shared)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                        RETURNING id;
-                    """, (name, filter_column, filter_text, user_id, user_id, False))
-                    self.conn.commit()
-                    return cur.fetchone()[0]
-            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-                if attempt == max_retries - 1:
-                    raise Exception("Failed to save filter") from e
-                self.connect()
+                        CREATE TABLE IF NOT EXISTS settings (
+                            key VARCHAR(50) PRIMARY KEY,
+                            value TEXT NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
 
-    def get_saved_filters(self, user_id=None):
-        """Get all saved filters"""
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                self.ensure_connection()
-                with self.conn.cursor() as cur:
-                    if user_id is not None:
-                        cur.execute("""
-                            SELECT f.id, f.name, f.filter_column, f.filter_text, 
-                                   f.owner_id, f.is_shared,
-                                   CASE 
-                                       WHEN f.owner_id = %s THEN 'owner'
-                                       ELSE 'shared'
-                                   END as filter_type
-                            FROM saved_filters f
-                            WHERE f.user_id = %s OR (
-                                f.id IN (
-                                    SELECT filter_id 
-                                    FROM filter_sharing 
-                                    WHERE shared_with_id = %s AND status = 'accepted'
-                                )
-                            )
-                            ORDER BY name ASC
-                        """, (user_id, user_id, user_id))
-                    else:
-                        cur.execute("""
-                            SELECT id, name, filter_column, filter_text, 
-                                   owner_id, is_shared, 'owner' as filter_type
-                            FROM saved_filters
-                            ORDER BY name ASC
-                        """)
-                    columns = ['id', 'name', 'filter_column', 'filter_text', 
-                             'owner_id', 'is_shared', 'filter_type']
-                    results = cur.fetchall()
-                    return [dict(zip(columns, row)) for row in results]
-            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-                if attempt == max_retries - 1:
-                    raise Exception("Failed to get saved filters") from e
-                self.connect()
-
-    def delete_saved_filter(self, filter_id):
-        """Delete a saved filter"""
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                self.ensure_connection()
-                with self.conn.cursor() as cur:
+                    # Create saved_filters table
                     cur.execute("""
-                        DELETE FROM saved_filters
-                        WHERE id = %s
-                        RETURNING id
-                    """, (filter_id,))
+                        CREATE TABLE IF NOT EXISTS saved_filters (
+                            id SERIAL PRIMARY KEY,
+                            name VARCHAR(100) NOT NULL,
+                            filter_column VARCHAR(50) NOT NULL,
+                            filter_text TEXT NOT NULL,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+                    
                     self.conn.commit()
-                    return cur.fetchone() is not None
+                    return
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if attempt == max_retries - 1:
-                    raise Exception("Failed to delete filter") from e
+                    raise Exception("Failed to setup tables") from e
                 self.connect()
 
     def add_transaction(self, date, type_trans, description, amount, user_id=None):
@@ -342,12 +115,12 @@ class Database:
                         WHERE 1=1
                     """
                     params = []
-
+                    
                     # Add user_id filter if provided
                     if user_id is not None:
                         query += " AND user_id = %s"
                         params.append(user_id)
-
+                    
                     if column == "amount":
                         try:
                             float_value = float(value)
@@ -362,10 +135,10 @@ class Database:
                     elif column == "description":
                         query += " AND LOWER(description) LIKE LOWER(%s)"
                         params.append(f"%{value}%")
-
+                    
                     query += " ORDER BY date DESC, created_at DESC"
                     cur.execute(query, tuple(params))
-
+                    
                     columns = ['id', 'date', 'type', 'description', 'amount']
                     results = cur.fetchall()
                     return [dict(zip(columns, row)) for row in results]
@@ -517,9 +290,55 @@ class Database:
                     raise Exception(f"Failed to update setting {key}") from e
                 self.connect()
 
+    def save_filter(self, name, filter_column, filter_text, user_id=None):
+        """Save a filter preset with retry logic"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO saved_filters (name, filter_column, filter_text, user_id)
+                        VALUES (%s, %s, %s, %s)
+                        RETURNING id;
+                    """, (name, filter_column, filter_text, user_id))
+                    self.conn.commit()
+                    return cur.fetchone()[0]
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to save filter") from e
+                self.connect()
+
+    def get_saved_filters(self, user_id=None):
+        """Get all saved filters with retry logic"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    if user_id is not None:
+                        cur.execute("""
+                            SELECT id, name, filter_column, filter_text
+                            FROM saved_filters
+                            WHERE user_id = %s
+                            ORDER BY name ASC
+                        """, (user_id,))
+                    else:
+                        cur.execute("""
+                            SELECT id, name, filter_column, filter_text
+                            FROM saved_filters
+                            ORDER BY name ASC
+                        """)
+                    columns = ['id', 'name', 'filter_column', 'filter_text']
+                    results = cur.fetchall()
+                    return [dict(zip(columns, row)) for row in results]
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to get saved filters") from e
+                self.connect()
 
     def delete_saved_filter(self, filter_id):
-        """Delete a saved filter"""
+        """Delete a saved filter by ID with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
             try:
@@ -528,13 +347,13 @@ class Database:
                     cur.execute("""
                         DELETE FROM saved_filters
                         WHERE id = %s
-                        RETURNING id
+                        RETURNING id;
                     """, (filter_id,))
                     self.conn.commit()
                     return cur.fetchone() is not None
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if attempt == max_retries - 1:
-                    raise Exception("Failed to delete filter") from e
+                    raise Exception("Failed to delete saved filter") from e
                 self.connect()
 
     def delete_transaction(self, transaction_id):
