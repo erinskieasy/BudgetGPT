@@ -254,7 +254,10 @@ with st.sidebar:
             if st.button(f"Delete '{filter_data['name']}'"):
                 if db.delete_saved_filter(filter_data['id']):
                     st.success("Filter deleted successfully!")
-                    reset_filter_form()
+                    # Force refresh without directly modifying session state
+                    time.sleep(0.5)  # Brief pause to show success message
+                    st.cache_resource.clear()
+                    st.rerun()
 
 # Get all transactions first for total metrics
 all_df = transaction_manager.get_transactions_df()
