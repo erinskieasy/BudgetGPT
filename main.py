@@ -133,14 +133,19 @@ def reset_filter_form():
 
 def handle_saved_filter_change():
     """Handle when a saved filter is selected"""
-    if st.session_state.saved_filter != "None":
-        saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
-        if saved_filters:
-            filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
-            if st.session_state.saved_filter in filter_options:
-                selected_idx = filter_options.index(st.session_state.saved_filter)
-                filter_data = saved_filters[selected_idx]
-                return filter_data['filter_column'], filter_data['filter_text']
+    if st.session_state.saved_filter == "None":
+        # Reset Quick Filters when None is selected
+        st.session_state.filter_column = "None"
+        st.session_state.filter_text = ""
+        return "None", ""
+        
+    saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
+    if saved_filters:
+        filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
+        if st.session_state.saved_filter in filter_options:
+            selected_idx = filter_options.index(st.session_state.saved_filter)
+            filter_data = saved_filters[selected_idx]
+            return filter_data['filter_column'], filter_data['filter_text']
     return "None", ""
 
 def handle_filter_column_change():
@@ -241,7 +246,8 @@ with st.sidebar:
         selected_filter = st.selectbox(
             "Select a saved filter",
             options=filter_options,
-            key="saved_filter"
+            key="saved_filter",
+            on_change=handle_saved_filter_change
         )
         
         if selected_filter != "None":
