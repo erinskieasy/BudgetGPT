@@ -181,19 +181,28 @@ class Database:
                     raise Exception("Failed to get transactions") from e
                 self.connect()
 
-    def get_balance(self):
+    def get_balance(self, user_id=None):
         """Calculate current balance with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 self.ensure_connection()
                 with self.conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT 
-                            COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) -
-                            COALESCE(SUM(CASE WHEN type IN ('expense', 'subscription') THEN amount ELSE 0 END), 0)
-                        FROM transactions
-                    """)
+                    if user_id is not None:
+                        cur.execute("""
+                            SELECT 
+                                COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) -
+                                COALESCE(SUM(CASE WHEN type IN ('expense', 'subscription') THEN amount ELSE 0 END), 0)
+                            FROM transactions
+                            WHERE user_id = %s
+                        """, (user_id,))
+                    else:
+                        cur.execute("""
+                            SELECT 
+                                COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) -
+                                COALESCE(SUM(CASE WHEN type IN ('expense', 'subscription') THEN amount ELSE 0 END), 0)
+                            FROM transactions
+                        """)
                     return cur.fetchone()[0] or 0
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if attempt == max_retries - 1:
