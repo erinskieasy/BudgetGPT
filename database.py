@@ -102,7 +102,7 @@ class Database:
                 if attempt == max_retries - 1:
                     raise Exception("Failed to add transaction") from e
                 self.connect()
-    def filter_transactions(self, column, value):
+    def filter_transactions(self, column, value, user_id=None):
         """Get filtered transactions with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
@@ -112,28 +112,32 @@ class Database:
                     query = """
                         SELECT id, date, type, description, amount
                         FROM transactions
+                        WHERE 1=1
                     """
+                    params = []
+                    
+                    # Add user_id filter if provided
+                    if user_id is not None:
+                        query += " AND user_id = %s"
+                        params.append(user_id)
                     
                     if column == "amount":
                         try:
                             float_value = float(value)
-                            query += " WHERE amount = %s"
-                            params = (float_value,)
+                            query += " AND amount = %s"
+                            params.append(float_value)
                         except ValueError:
                             # Invalid amount, return empty result
                             return []
                     elif column == "type":
-                        query += " WHERE LOWER(type) LIKE LOWER(%s)"
-                        params = (f"%{value}%",)
+                        query += " AND LOWER(type) LIKE LOWER(%s)"
+                        params.append(f"%{value}%")
                     elif column == "description":
-                        query += " WHERE LOWER(description) LIKE LOWER(%s)"
-                        params = (f"%{value}%",)
-                    else:
-                        # Invalid column, return all transactions
-                        params = tuple()
+                        query += " AND LOWER(description) LIKE LOWER(%s)"
+                        params.append(f"%{value}%")
                     
                     query += " ORDER BY date DESC, created_at DESC"
-                    cur.execute(query, params)
+                    cur.execute(query, tuple(params))
                     
                     columns = ['id', 'date', 'type', 'description', 'amount']
                     results = cur.fetchall()
