@@ -133,26 +133,21 @@ def reset_filter_form():
 def handle_saved_filter_change():
     """Handle when a saved filter is selected"""
     if st.session_state.saved_filter != "None":
-        saved_filters = db.get_saved_filters()
+        saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
         if saved_filters:
             filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
             if st.session_state.saved_filter in filter_options:
                 selected_idx = filter_options.index(st.session_state.saved_filter)
                 filter_data = saved_filters[selected_idx]
-                st.session_state.filter_column = filter_data['filter_column']
-                st.session_state.filter_text = filter_data['filter_text']
-    else:
-        reset_filter_form()
+                # Update filter values without modifying session state directly
+                return filter_data['filter_column'], filter_data['filter_text']
+    return "None", ""
 
 def handle_filter_column_change():
     """Handle when the filter column changes"""
-    if st.session_state.filter_column == "None":
-        st.cache_resource.clear()
-        # Reset other filter-related states through widget defaults
-        if 'filter_text' in st.session_state:
-            del st.session_state.filter_text
-        if 'saved_filter' in st.session_state:
-            del st.session_state.saved_filter
+    # No session state modifications needed here
+    # The form will naturally reset through widget defaults
+    pass
 
 # Initialize application components
 transaction_manager, gpt_processor, db = init_components()
@@ -243,16 +238,17 @@ with st.sidebar:
     saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
     if saved_filters:
         filter_options = ["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
-        st.selectbox(
+        selected_filter = st.selectbox(
             "Select a saved filter",
             options=filter_options,
-            key="saved_filter",
-            on_change=handle_saved_filter_change
+            key="saved_filter"
         )
-
-        if st.session_state.saved_filter != "None":
-            selected_idx = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters].index(st.session_state.saved_filter)
-            filter_data = saved_filters[selected_idx]
+        
+        if selected_filter != "None":
+            filter_column, filter_text = handle_saved_filter_change()
+            if filter_column != "None":
+                st.session_state['filter_column'] = filter_column
+                st.session_state['filter_text'] = filter_text
 
             # Delete filter button
             if st.button(f"Delete '{filter_data['name']}'"):
