@@ -38,20 +38,9 @@ if 'user' not in st.session_state:
 def login_user(username, password):
     user = auth.authenticate_user(username, password)
     if user:
-        # Clear cache before setting new user
-        st.cache_resource.clear()
-        
-        # Set user in session state
         st.session_state['user'] = user
         token = auth.create_access_token({"user_id": user["id"]})
         st.session_state['token'] = token
-        
-        # Initialize filter states
-        st.session_state['filter_column'] = "None"
-        st.session_state['filter_text'] = ""
-        st.session_state['filter_name'] = ""
-        st.session_state['saved_filter'] = "None"
-        
         return True
     return False
 
@@ -79,10 +68,7 @@ def init_components():
     gpt = GPTProcessor()
     transaction_manager = TransactionManager(db)
     if st.session_state.get('user'):
-        st.write(f"Debug: Setting user_id to {st.session_state['user']['id']}")
         transaction_manager.set_user_id(st.session_state['user']['id'])
-    else:
-        st.write("Debug: No user in session state")
     return transaction_manager, gpt, db
 
 # Authentication UI
@@ -258,12 +244,7 @@ with st.sidebar:
             key="saved_filter"
         )
         
-        if selected_filter == "None":
-            # Clear filter values and trigger refresh
-            st.session_state['filter_column'] = "None"
-            st.session_state['filter_text'] = ""
-            st.rerun()
-        else:
+        if selected_filter != "None":
             saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
             filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
             if selected_filter in filter_options:
