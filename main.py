@@ -268,7 +268,7 @@ with st.sidebar:
                             st.rerun()
 
     # Saved Filters Section
-    st.header("Saved Filters")
+    st.header("My Filters")
     saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
     
     if saved_filters:
@@ -276,52 +276,33 @@ with st.sidebar:
         owned_filters = [f for f in saved_filters if f['filter_type'] == 'owner']
         shared_filters = [f for f in saved_filters if f['filter_type'] == 'shared']
         
-        # Create display options for both types
-        filter_options = ["None"]
+        # Display owned filters first
         if owned_filters:
-            filter_options.extend([f"(My) {f['name']} ({f['filter_column']}: {f['filter_text']})" 
-                                for f in owned_filters])
-        if shared_filters:
-            filter_options.extend([f"(Shared) {f['name']} ({f['filter_column']}: {f['filter_text']})" 
-                                for f in shared_filters])
-        
-        selected_filter = st.selectbox(
-            "Select a filter",
-            options=filter_options,
-            key="saved_filter",
-            on_change=handle_saved_filter_change
-        )
-        
-        if selected_filter != "None":
-            is_shared = selected_filter.startswith("(Shared)")
-            filter_name = selected_filter.split(') ')[1] if is_shared else selected_filter[5:]
-            filter_options = ([f"(Shared) {f['name']} ({f['filter_column']}: {f['filter_text']})" 
-                             for f in shared_filters] if is_shared 
-                            else [f"(My) {f['name']} ({f['filter_column']}: {f['filter_text']})" 
-                                 for f in owned_filters])
+            selected_own_filter = st.selectbox(
+                "Select your filter",
+                options=["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in owned_filters],
+                key="saved_filter",
+                on_change=handle_saved_filter_change
+            )
             
-            selected_idx = filter_options.index(selected_filter)
-            filter_data = shared_filters[selected_idx] if is_shared else owned_filters[selected_idx]
-            
-            # Set filter values
-            if filter_data['filter_column'] != st.session_state.get('filter_column') or \
-               filter_data['filter_text'] != st.session_state.get('filter_text'):
+            if selected_own_filter != "None":
+                selected_idx = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in owned_filters].index(selected_own_filter)
+                filter_data = owned_filters[selected_idx]
+                
+                # Set filter values
                 st.session_state.filter_column = filter_data['filter_column']
                 st.session_state.filter_text = filter_data['filter_text']
-            
-            # Show options for owned filters
-            if not is_shared:
+                
+                # Share filter section - always visible for owned filters
                 st.divider()
-                st.subheader("Filter Actions")
+                st.subheader("Share Filter")
+                share_username = st.text_input(
+                    "Enter username to share this filter with:",
+                    key=f"share_username_{filter_data['id']}"
+                )
                 
-                # Share filter section
-                st.write("Share this filter with another user:")
-                share_username = st.text_input("Enter username to share with",
-                                          key=f"share_username_input_{filter_data['id']}")
-                
-                col1, col2 = st.columns([1, 1])
-                with col1:
-                    if st.button("Share Filter", key=f"share_filter_{filter_data['id']}"):
+                if st.button("Share Filter", key=f"share_filter_{filter_data['id']}"):
+                    if share_username:
                         try:
                             if db.share_filter(filter_data['id'],
                                           st.session_state['user']['id'],
@@ -331,13 +312,35 @@ with st.sidebar:
                                 st.rerun()
                         except Exception as e:
                             st.error(str(e))
+                    else:
+                        st.warning("Please enter a username to share with")
                 
-                with col2:
-                    if st.button("Delete Filter", key=f"delete_filter_{filter_data['id']}"):
-                        if db.delete_saved_filter(filter_data['id']):
-                            st.success("Filter deleted successfully!")
-                            time.sleep(0.5)
-                            st.rerun()
+                st.divider()
+                if st.button("Delete Filter", key=f"delete_filter_{filter_data['id']}",
+                           type="secondary"):
+                    if db.delete_saved_filter(filter_data['id']):
+                        st.success("Filter deleted successfully!")
+                        time.sleep(0.5)
+                        st.rerun()
+        
+        # Display shared filters section
+        st.header("Shared With Me")
+        if shared_filters:
+            selected_shared_filter = st.selectbox(
+                "Select shared filter",
+                options=["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in shared_filters],
+                key="shared_filter"
+            )
+            
+            if selected_shared_filter != "None":
+                selected_idx = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in shared_filters].index(selected_shared_filter)
+                filter_data = shared_filters[selected_idx]
+                
+                # Set filter values for shared filter
+                st.session_state.filter_column = filter_data['filter_column']
+                st.session_state.filter_text = filter_data['filter_text']
+        else:
+            st.info("No filters have been shared with you yet")
 
 # Get all transactions first for total metrics
 all_df = transaction_manager.get_transactions_df()
