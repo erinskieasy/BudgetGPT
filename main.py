@@ -47,7 +47,7 @@ def init_components():
 st.set_page_config(
     page_title="GPT Budget Tracker",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
     menu_items={
         'Get Help': None,
         'Report a bug': None,
