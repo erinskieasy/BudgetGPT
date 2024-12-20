@@ -127,3 +127,36 @@ class Auth:
                 }
         except Exception:
             return None
+
+    def change_password(self, user_id: int, current_password: str, new_password: str) -> bool:
+        """Change user's password."""
+        try:
+            self.db.ensure_connection()
+            with self.db.conn.cursor() as cur:
+                # Verify current password
+                cur.execute(
+                    """
+                    SELECT password_hash
+                    FROM users
+                    WHERE id = %s
+                    """,
+                    (user_id,)
+                )
+                result = cur.fetchone()
+                if not result or not self.verify_password(current_password, result[0]):
+                    return False
+
+                # Update to new password
+                cur.execute(
+                    """
+                    UPDATE users
+                    SET password_hash = %s
+                    WHERE id = %s
+                    """,
+                    (self.get_password_hash(new_password), user_id)
+                )
+                self.db.conn.commit()
+                return True
+        except Exception as e:
+            print(f"Password change error: {str(e)}")
+            return False

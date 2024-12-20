@@ -168,9 +168,36 @@ st.title("GPT Budget Tracker")
 with st.sidebar:
     st.title("Settings")
 
-    # Add logout button
+    # User profile section
     if st.session_state.get('user'):
         st.write(f"Logged in as: {st.session_state['user']['username']}")
+        
+        # Profile management expander
+        with st.expander("Profile Settings", expanded=False):
+            with st.form("change_password_form"):
+                st.subheader("Change Password")
+                current_password = st.text_input("Current Password", type="password")
+                new_password = st.text_input("New Password", type="password")
+                confirm_new_password = st.text_input("Confirm New Password", type="password")
+                submit_change = st.form_submit_button("Change Password")
+                
+                if submit_change:
+                    if not current_password or not new_password or not confirm_new_password:
+                        st.error("Please fill in all password fields")
+                    elif new_password != confirm_new_password:
+                        st.error("New passwords do not match")
+                    else:
+                        if auth.change_password(
+                            st.session_state['user']['id'],
+                            current_password,
+                            new_password
+                        ):
+                            st.success("Password changed successfully!")
+                            time.sleep(1)
+                            logout_user()  # Force re-login with new password
+                        else:
+                            st.error("Failed to change password. Please verify your current password.")
+
         if st.button("Logout"):
             logout_user()
 
