@@ -1,7 +1,6 @@
 import streamlit as st
 import plotly.express as px
 import pandas as pd
-import io
 import time
 from datetime import datetime
 from database import Database
@@ -10,34 +9,21 @@ from transaction_manager import TransactionManager
 from serve_static import serve_static_files
 from auth import Auth
 
-def reset_filter_form():
-    """Reset all filter-related session state variables"""
-    st.session_state['filter_column'] = "None"
-    st.session_state['filter_text'] = ""
-    st.session_state['filter_name'] = ""
-    st.session_state['saved_filter'] = "None"
+# Page configuration must be the first Streamlit command
+st.set_page_config(
+    page_title="GPT Budget Tracker",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+    menu_items={
+        'Get Help': None,
+        'Report a bug': None,
+        'About': None
+    }
+)
 
-def handle_saved_filter_change():
-    """Handle when a saved filter is selected"""
-    if st.session_state.saved_filter != "None":
-        saved_filters = db.get_saved_filters()
-        filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
-        if st.session_state.saved_filter in filter_options:
-            selected_idx = filter_options.index(st.session_state.saved_filter)
-            filter_data = saved_filters[selected_idx]
-            st.session_state.filter_column = filter_data['filter_column']
-            st.session_state.filter_text = filter_data['filter_text']
-    else:
-        reset_filter_form()
+# Serve static files for PWA
+serve_static_files()
 
-def handle_filter_column_change():
-    """Handle when the filter column changes"""
-    if st.session_state.filter_column == "None":
-        st.session_state.filter_text = ""
-        st.session_state.filter_name = ""
-        st.session_state.saved_filter = "None"
-
-# Initialize application components
 # Initialize authentication
 @st.cache_resource
 def init_auth():
@@ -63,31 +49,41 @@ def logout_user():
     st.session_state['token'] = None
     st.rerun()
 
+# Initialize components
+@st.cache_resource
+def init_components():
+    db = Database()
+    gpt = GPTProcessor()
+    transaction_manager = TransactionManager(db)
+    if st.session_state.get('user'):
+        transaction_manager.set_user_id(st.session_state['user']['id'])
+    return transaction_manager, gpt, db
+
 # Authentication UI
 if not st.session_state.get('user'):
     st.title("Login")
     tab1, tab2 = st.tabs(["Login", "Register"])
-    
+
     with tab1:
         with st.form("login_form"):
             username = st.text_input("Username")
             password = st.text_input("Password", type="password")
             submit = st.form_submit_button("Login")
-            
+
             if submit:
                 if login_user(username, password):
                     st.success("Login successful!")
                     st.rerun()
                 else:
                     st.error("Invalid username or password")
-    
+
     with tab2:
         with st.form("register_form"):
             new_username = st.text_input("Username")
             new_password = st.text_input("Password", type="password")
             confirm_password = st.text_input("Confirm Password", type="password")
             register = st.form_submit_button("Register")
-            
+
             if register:
                 if new_password != confirm_password:
                     st.error("Passwords do not match")
@@ -101,31 +97,8 @@ if not st.session_state.get('user'):
                         st.error(str(e))
                     except Exception as e:
                         st.error("Registration failed. Please try again.")
-    
+
     st.stop()
-@st.cache_resource
-def init_components():
-    db = Database()
-    gpt = GPTProcessor()
-    transaction_manager = TransactionManager(db)
-    if st.session_state.get('user'):
-        transaction_manager.set_user_id(st.session_state['user']['id'])
-    return transaction_manager, gpt, db
-
-# Page configuration and PWA setup
-st.set_page_config(
-    page_title="GPT Budget Tracker",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-    menu_items={
-        'Get Help': None,
-        'Report a bug': None,
-        'About': None
-    }
-)
-
-# Serve static files for PWA
-serve_static_files()
 
 # Initialize session state for filters
 if 'filter_column' not in st.session_state:
@@ -138,9 +111,35 @@ if 'saved_filter' not in st.session_state:
     st.session_state['saved_filter'] = "None"
 
 def reset_filter_form():
+    """Reset all filter-related session state variables"""
     st.session_state['filter_column'] = "None"
     st.session_state['filter_text'] = ""
     st.session_state['filter_name'] = ""
+    st.session_state['saved_filter'] = "None"
+
+def handle_saved_filter_change():
+    """Handle when a saved filter is selected"""
+    if st.session_state.saved_filter != "None":
+        saved_filters = db.get_saved_filters()
+        if saved_filters:
+            filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
+            if st.session_state.saved_filter in filter_options:
+                selected_idx = filter_options.index(st.session_state.saved_filter)
+                filter_data = saved_filters[selected_idx]
+                st.session_state.filter_column = filter_data['filter_column']
+                st.session_state.filter_text = filter_data['filter_text']
+    else:
+        reset_filter_form()
+
+def handle_filter_column_change():
+    """Handle when the filter column changes"""
+    if st.session_state.filter_column == "None":
+        st.session_state.filter_text = ""
+        st.session_state.filter_name = ""
+        st.session_state.saved_filter = "None"
+
+# Initialize application components
+transaction_manager, gpt_processor, db = init_components()
 
 # Inject PWA components
 pwa_code = """
@@ -165,23 +164,20 @@ st.markdown(pwa_code, unsafe_allow_html=True)
 
 st.title("GPT Budget Tracker")
 
-# Initialize components
-transaction_manager, gpt_processor, db = init_components()
-
 # Sidebar configuration
 with st.sidebar:
     st.title("Settings")
-    
+
     # Add logout button
     if st.session_state.get('user'):
         st.write(f"Logged in as: {st.session_state['user']['username']}")
         if st.button("Logout"):
             logout_user()
-    
+
     # Exchange Rate Section
     st.header("Exchange Rate")
     current_rate = float(db.get_setting('exchange_rate') or 155.0)
-    
+
     exchange_rate = st.number_input(
         "USD to JMD Exchange Rate",
         min_value=100.0,
@@ -190,16 +186,15 @@ with st.sidebar:
         step=0.1,
         help="Set the exchange rate for USD to JMD conversion"
     )
-    
+
     # Update database and GPT processor if rate changes
     if exchange_rate != current_rate:
         db.update_setting('exchange_rate', exchange_rate)
         gpt_processor.set_exchange_rate(exchange_rate)
-        st.rerun()  # Refresh the page to reflect the new rate
+        st.rerun()
     else:
-        # Always ensure GPT processor has current rate
         gpt_processor.set_exchange_rate(current_rate)
-    
+
     # Saved Filters Section
     st.header("Saved Filters")
     saved_filters = db.get_saved_filters()
@@ -211,29 +206,16 @@ with st.sidebar:
             key="saved_filter",
             on_change=handle_saved_filter_change
         )
-        
+
         if st.session_state.saved_filter != "None":
             selected_idx = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters].index(st.session_state.saved_filter)
             filter_data = saved_filters[selected_idx]
-            
+
             # Delete filter button
             if st.button(f"Delete '{filter_data['name']}'"):
                 if db.delete_saved_filter(filter_data['id']):
                     st.success("Filter deleted successfully!")
                     reset_filter_form()
-
-    
-
-
-# Initialize state if not exists
-if 'filter_column' not in st.session_state:
-    st.session_state['filter_column'] = "None"
-if 'filter_text' not in st.session_state:
-    st.session_state['filter_text'] = ""
-if 'filter_name' not in st.session_state:
-    st.session_state['filter_name'] = ""
-if 'saved_filter' not in st.session_state:
-    st.session_state['saved_filter'] = "None"
 
 # Get all transactions first for total metrics
 all_df = transaction_manager.get_transactions_df()
@@ -243,8 +225,7 @@ stats = {
     'current_balance': (
         all_df[all_df['type'] == 'income']['amount'].sum() -
         all_df[all_df['type'].isin(['expense', 'subscription'])]['amount'].sum()
-    ) if not all_df.empty else 0,
-    'monthly_breakdown': all_df.groupby(pd.to_datetime(all_df['date']).dt.strftime('%Y-%m'))['amount'].sum().to_dict() if not all_df.empty else {}
+    ) if not all_df.empty else 0
 }
 
 # Get filtered transactions for display
@@ -295,7 +276,7 @@ if not df.empty:
         use_container_width=True,
         num_rows="fixed",
     )
-    
+
     # Check for changes and update the database
     if not df.equals(edited_df):
         for index, row in edited_df.iterrows():
@@ -314,32 +295,83 @@ if not df.empty:
 else:
     st.info("No transactions recorded yet")
 
-def reset_filter_form():
-    """Reset all filter-related session state variables"""
-    st.session_state['filter_column'] = "None"
-    st.session_state['filter_text'] = ""
-    st.session_state['filter_name'] = ""
-    st.session_state['saved_filter'] = "None"
+# Input section below transaction table
+input_method = st.radio(
+    "Choose input method:",
+    ["Text Input", "Receipt Upload"]
+)
 
-def handle_saved_filter_change():
-    """Handle when a saved filter is selected"""
-    if st.session_state.saved_filter != "None":
-        saved_filters = db.get_saved_filters()
-        filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
-        if st.session_state.saved_filter in filter_options:
-            selected_idx = filter_options.index(st.session_state.saved_filter)
-            filter_data = saved_filters[selected_idx]
-            st.session_state.filter_column = filter_data['filter_column']
-            st.session_state.filter_text = filter_data['filter_text']
-    else:
-        reset_filter_form()
+# Text input section
+if input_method == "Text Input":
+    text_input = st.chat_input(
+        placeholder="What did you buy?"
+    )
 
-def handle_filter_column_change():
-    """Handle when the filter column changes"""
-    if st.session_state.filter_column == "None":
-        st.session_state.filter_text = ""
-        st.session_state.filter_name = ""
-        st.session_state.saved_filter = "None"
+    if text_input:
+        with st.spinner("Processing input..."):
+            try:
+                result = gpt_processor.process_text_input(text_input)
+                if isinstance(result, dict) and result.get("is_deletion"):
+                    deletion_type = result.get("deletion_type")
+                    ids_to_delete = []
+
+                    if deletion_type == "specific_ids":
+                        ids_to_delete = result.get("transaction_ids", [])
+                    elif deletion_type == "last_n":
+                        n = result.get("n", 1)  # Default to 1 if not specified
+                        ids_to_delete = db.get_latest_transaction_ids(limit=n)
+                    elif deletion_type == "first_n":
+                        n = result.get("n", 1)  # Default to 1 if not specified
+                        ids_to_delete = list(reversed(db.get_latest_transaction_ids()))[:n]
+                    elif deletion_type == "all":
+                        ids_to_delete = db.get_latest_transaction_ids()
+                    elif deletion_type == "all_except_last_n":
+                        n = result.get("n", 1)  # Default to 1 if not specified
+                        all_ids = db.get_latest_transaction_ids()
+                        ids_to_delete = all_ids[n:]
+                    elif deletion_type == "all_except_ids":
+                        except_ids = set(result.get("transaction_ids", []))
+                        all_ids = db.get_latest_transaction_ids()
+                        ids_to_delete = [id for id in all_ids if id not in except_ids]
+
+                    if ids_to_delete:
+                        results = transaction_manager.delete_transactions(ids_to_delete)
+                        successful = [r["id"] for r in results if r["success"]]
+                        failed = [(r["id"], r["error"]) for r in results if not r["success"]]
+
+                        if successful:
+                            st.success(f"Successfully deleted {len(successful)} transaction(s)")
+                        if failed:
+                            st.error("Failed to delete some transactions:\n" + 
+                                    "\n".join(f"ID {id}: {error}" for id, error in failed))
+                    else:
+                        st.warning("No transactions found to delete")
+                else:
+                    # Handle multiple transactions
+                    transactions = result.get("transactions", [result])
+                    for transaction in transactions:
+                        transaction_manager.add_transaction(transaction)
+
+                    num_transactions = len(transactions)
+                    st.success(f"Successfully added {num_transactions} transaction{'s' if num_transactions > 1 else ''}!")
+                st.rerun()  # Refresh to show the updated transactions
+            except Exception as e:
+                st.error(f"Error processing input: {str(e)}")
+
+# Receipt upload section
+else:
+    uploaded_file = st.file_uploader("Choose a receipt image", type=['png', 'jpg', 'jpeg'])
+
+    if uploaded_file is not None:
+        if st.button("Process Receipt"):
+            with st.spinner("Processing receipt..."):
+                try:
+                    image_bytes = uploaded_file.getvalue()
+                    transaction_data = gpt_processor.process_receipt_image(image_bytes)
+                    transaction_manager.add_transaction(transaction_data)
+                    st.success("Receipt processed successfully!")
+                except Exception as e:
+                    st.error(f"Error processing receipt: {str(e)}")
 
 # Quick Filters
 with st.expander("Quick Filters", expanded=False):
@@ -359,7 +391,7 @@ with st.expander("Quick Filters", expanded=False):
             placeholder="Enter search term...",
             disabled=st.session_state.filter_column == "None"
         )
-    
+
     # Save current filter (only show when no saved filter is selected)
     if filter_column != "None" and filter_text and st.session_state.saved_filter == "None":
         save_col1, save_col2 = st.columns([3, 1])
@@ -401,84 +433,3 @@ with col4:
     # Calculate filtered balance only if a filter is applied
     filtered_balance = df['amount'].sum() if not df.empty and (filter_column != "None" or filter_text) else 0
     st.metric("Filter Balance", f"${filtered_balance:.2f}")
-
-# Input section below transaction table
-# st.subheader("Add Transaction")
-input_method = st.radio(
-    "Choose input method:",
-    ["Text Input", "Receipt Upload"]
-)
-
-# Text input section
-if input_method == "Text Input":
-    text_input = st.chat_input(
-        placeholder="What did you buy?"
-    )
-    
-    if text_input:
-        with st.spinner("Processing input..."):
-            try:
-                result = gpt_processor.process_text_input(text_input)
-                if isinstance(result, dict) and result.get("is_deletion"):
-                    deletion_type = result.get("deletion_type")
-                    ids_to_delete = []
-                    
-                    if deletion_type == "specific_ids":
-                        ids_to_delete = result.get("transaction_ids", [])
-                    elif deletion_type == "last_n":
-                        n = result.get("n", 1)  # Default to 1 if not specified
-                        ids_to_delete = db.get_latest_transaction_ids(limit=n)
-                    elif deletion_type == "first_n":
-                        n = result.get("n", 1)  # Default to 1 if not specified
-                        ids_to_delete = list(reversed(db.get_latest_transaction_ids()))[:n]
-                    elif deletion_type == "all":
-                        ids_to_delete = db.get_latest_transaction_ids()
-                    elif deletion_type == "all_except_last_n":
-                        n = result.get("n", 1)  # Default to 1 if not specified
-                        all_ids = db.get_latest_transaction_ids()
-                        ids_to_delete = all_ids[n:]
-                    elif deletion_type == "all_except_ids":
-                        except_ids = set(result.get("transaction_ids", []))
-                        all_ids = db.get_latest_transaction_ids()
-                        ids_to_delete = [id for id in all_ids if id not in except_ids]
-                    
-                    if ids_to_delete:
-                        results = transaction_manager.delete_transactions(ids_to_delete)
-                        successful = [r["id"] for r in results if r["success"]]
-                        failed = [(r["id"], r["error"]) for r in results if not r["success"]]
-                        
-                        if successful:
-                            st.success(f"Successfully deleted {len(successful)} transaction(s)")
-                        if failed:
-                            st.error("Failed to delete some transactions:\n" + 
-                                    "\n".join(f"ID {id}: {error}" for id, error in failed))
-                    else:
-                        st.warning("No transactions found to delete")
-                else:
-                    # Handle multiple transactions
-                    transactions = result.get("transactions", [result])
-                    for transaction in transactions:
-                        transaction_manager.add_transaction(transaction)
-                    
-                    num_transactions = len(transactions)
-                    st.success(f"Successfully added {num_transactions} transaction{'s' if num_transactions > 1 else ''}!")
-                st.rerun()  # Refresh to show the updated transactions
-            except Exception as e:
-                st.error(f"Error processing input: {str(e)}")
-
-# Receipt upload section
-else:
-    uploaded_file = st.file_uploader("Choose a receipt image", type=['png', 'jpg', 'jpeg'])
-    
-    if uploaded_file is not None:
-        if st.button("Process Receipt"):
-            with st.spinner("Processing receipt..."):
-                try:
-                    image_bytes = uploaded_file.getvalue()
-                    transaction_data = gpt_processor.process_receipt_image(image_bytes)
-                    transaction_manager.add_transaction(transaction_data)
-                    st.success("Receipt processed successfully!")
-                except Exception as e:
-                    st.error(f"Error processing receipt: {str(e)}")
-
-# Monthly spending chart moved to reports.py
