@@ -309,44 +309,35 @@ with st.sidebar:
                 st.session_state.filter_column = filter_data['filter_column']
                 st.session_state.filter_text = filter_data['filter_text']
             
-            # Only show delete and share options for owned filters
+            # Show options for owned filters
             if not is_shared:
-                col1, col2 = st.columns([1, 1])
-                with col1:
-                    delete_button_key = f"delete_filter_{filter_data['id']}"
-                    if st.button("Delete Filter", key=delete_button_key):
-                        if db.delete_saved_filter(filter_data['id']):
-                            st.success("Filter deleted successfully!")
-                            time.sleep(0.5)
-                            st.rerun()
+                st.divider()
+                st.subheader("Filter Actions")
                 
-                with col2:
-                    share_button_key = f"share_filter_{filter_data['id']}"
-                    if st.button("Share Filter", key=share_button_key):
-                        st.session_state.sharing_filter_id = filter_data['id']
-                        st.session_state.show_share_modal = True
-            
-            # Show share modal if needed
-            if st.session_state.get('show_share_modal', False):
+                # Share filter section
+                st.write("Share this filter with another user:")
                 share_username = st.text_input("Enter username to share with",
-                                            key="share_username_input")
+                                          key=f"share_username_input_{filter_data['id']}")
+                
                 col1, col2 = st.columns([1, 1])
                 with col1:
-                    if st.button("Share", key="confirm_share"):
+                    if st.button("Share Filter", key=f"share_filter_{filter_data['id']}"):
                         try:
-                            if db.share_filter(st.session_state.sharing_filter_id,
-                                            st.session_state['user']['id'],
-                                            share_username):
+                            if db.share_filter(filter_data['id'],
+                                          st.session_state['user']['id'],
+                                          share_username):
                                 st.success(f"Filter shared with {share_username}!")
-                                st.session_state.show_share_modal = False
                                 time.sleep(0.5)
                                 st.rerun()
                         except Exception as e:
                             st.error(str(e))
+                
                 with col2:
-                    if st.button("Cancel", key="cancel_share"):
-                        st.session_state.show_share_modal = False
-                        st.rerun()
+                    if st.button("Delete Filter", key=f"delete_filter_{filter_data['id']}"):
+                        if db.delete_saved_filter(filter_data['id']):
+                            st.success("Filter deleted successfully!")
+                            time.sleep(0.5)
+                            st.rerun()
 
 # Get all transactions first for total metrics
 all_df = transaction_manager.get_transactions_df()
