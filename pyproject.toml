@@ -4,10 +4,13 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = [
+    "jose>=1.0.0",
     "openai>=1.57.1",
     "pandas>=2.2.3",
+    "passlib>=1.7.4",
     "pillow>=11.0.0",
     "plotly>=5.24.1",
     "psycopg2-binary>=2.9.10",
+    "python-jose>=3.3.0",
     "streamlit>=1.40.2",
 ]
