@@ -447,10 +447,9 @@ with st.expander("Quick Filters", expanded=False):
                 else:
                     db.save_filter(filter_name, filter_column, filter_text, user_id=st.session_state['user']['id'])
                     st.success(f"Filter '{filter_name}' saved!")
-                    # Clear form inputs
-                    st.session_state.filter_name = ""
-                    st.session_state.filter_column = "None"
-                    st.session_state.filter_text = ""
+                    # Reset filter form using rerun
+                    reset_filter_form()
+                    time.sleep(0.5)  # Brief pause to show success message
                     st.rerun()
 
 # Financial metrics are now calculated directly from the filtered df earlier in the code
