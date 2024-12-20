@@ -244,7 +244,12 @@ with st.sidebar:
             key="saved_filter"
         )
         
-        if selected_filter != "None":
+        if selected_filter == "None":
+            # Clear filter values and trigger refresh
+            st.session_state['filter_column'] = "None"
+            st.session_state['filter_text'] = ""
+            st.rerun()
+        else:
             saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
             filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
             if selected_filter in filter_options:
