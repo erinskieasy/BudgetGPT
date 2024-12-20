@@ -139,15 +139,14 @@ def handle_saved_filter_change():
             if st.session_state.saved_filter in filter_options:
                 selected_idx = filter_options.index(st.session_state.saved_filter)
                 filter_data = saved_filters[selected_idx]
-                # Update filter values without modifying session state directly
                 return filter_data['filter_column'], filter_data['filter_text']
     return "None", ""
 
 def handle_filter_column_change():
     """Handle when the filter column changes"""
-    # No session state modifications needed here
-    # The form will naturally reset through widget defaults
-    pass
+    if st.session_state.filter_column == "None":
+        if 'filter_text' in st.session_state:
+            st.session_state.filter_text = ""
 
 # Initialize application components
 transaction_manager, gpt_processor, db = init_components()
@@ -245,24 +244,25 @@ with st.sidebar:
         )
         
         if selected_filter != "None":
-            saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
             filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
-            if selected_filter in filter_options:
-                selected_idx = filter_options.index(selected_filter)
-                filter_data = saved_filters[selected_idx]
-                
-                # Update current filter values
-                st.session_state['filter_column'] = filter_data['filter_column']
-                st.session_state['filter_text'] = filter_data['filter_text']
+            selected_idx = filter_options.index(selected_filter)
+            filter_data = saved_filters[selected_idx]
+            
+            # Set filter values
+            if filter_data['filter_column'] != st.session_state.get('filter_column') or \
+               filter_data['filter_text'] != st.session_state.get('filter_text'):
+                st.session_state.filter_column = filter_data['filter_column']
+                st.session_state.filter_text = filter_data['filter_text']
 
-                # Delete filter button
-                if st.button(f"Delete '{filter_data['name']}'"):
-                    if db.delete_saved_filter(filter_data['id']):
-                        st.success("Filter deleted successfully!")
-                        # Force refresh without directly modifying session state
-                        time.sleep(0.5)  # Brief pause to show success message
-                        st.cache_resource.clear()
-                        st.rerun()
+            # Delete filter button
+            if st.button(f"Delete '{filter_data['name']}'"):
+                if db.delete_saved_filter(filter_data['id']):
+                    st.success("Filter deleted successfully!")
+                    st.session_state.saved_filter = "None"
+                    st.session_state.filter_column = "None"
+                    st.session_state.filter_text = ""
+                    st.cache_resource.clear()
+                    st.rerun()
 
 # Get all transactions first for total metrics
 all_df = transaction_manager.get_transactions_df()
