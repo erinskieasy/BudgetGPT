@@ -147,10 +147,12 @@ def handle_saved_filter_change():
 def handle_filter_column_change():
     """Handle when the filter column changes"""
     if st.session_state.filter_column == "None":
-        # Instead of directly modifying session state, trigger a rerun
         st.cache_resource.clear()
-        time.sleep(0.1)  # Small delay to ensure UI updates
-        st.rerun()
+        # Reset other filter-related states through widget defaults
+        if 'filter_text' in st.session_state:
+            del st.session_state.filter_text
+        if 'saved_filter' in st.session_state:
+            del st.session_state.saved_filter
 
 # Initialize application components
 transaction_manager, gpt_processor, db = init_components()
