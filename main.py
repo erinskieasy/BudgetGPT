@@ -240,36 +240,130 @@ with st.sidebar:
 
     # Saved Filters Section
     st.header("Saved Filters")
-    saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
-    if saved_filters:
-        filter_options = ["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
-        selected_filter = st.selectbox(
-            "Select a saved filter",
-            options=filter_options,
-            key="saved_filter",
-            on_change=handle_saved_filter_change
-        )
-        
-        if selected_filter != "None":
-            filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
-            selected_idx = filter_options.index(selected_filter)
-            filter_data = saved_filters[selected_idx]
+    
+    # Personal Filters
+    with st.expander("My Filters", expanded=True):
+        saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
+        if saved_filters:
+            filter_options = ["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
+            selected_filter = st.selectbox(
+                "Select a saved filter",
+                options=filter_options,
+                key="saved_filter",
+                on_change=handle_saved_filter_change
+            )
             
-            # Set filter values
-            if filter_data['filter_column'] != st.session_state.get('filter_column') or \
-               filter_data['filter_text'] != st.session_state.get('filter_text'):
-                st.session_state.filter_column = filter_data['filter_column']
-                st.session_state.filter_text = filter_data['filter_text']
+            if selected_filter != "None":
+                filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
+                selected_idx = filter_options.index(selected_filter)
+                filter_data = saved_filters[selected_idx]
+                
+                # Set filter values
+                if filter_data['filter_column'] != st.session_state.get('filter_column') or \
+                   filter_data['filter_text'] != st.session_state.get('filter_text'):
+                    st.session_state.filter_column = filter_data['filter_column']
+                    st.session_state.filter_text = filter_data['filter_text']
 
-            # Delete filter button
-            delete_button_key = f"delete_filter_{filter_data['id']}"
-            if st.button("Delete Filter", key=delete_button_key):
-                if db.delete_saved_filter(filter_data['id']):
-                    st.success("Filter deleted successfully!")
-                    # Clear cache and force rerun without modifying session state
-                    st.cache_resource.clear()
-                    time.sleep(0.1)
-                    st.rerun()
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    # Delete filter button
+                    delete_button_key = f"delete_filter_{filter_data['id']}"
+                    if st.button("Delete Filter", key=delete_button_key):
+                        if db.delete_saved_filter(filter_data['id']):
+                            st.success("Filter deleted successfully!")
+                            st.cache_resource.clear()
+                            time.sleep(0.1)
+                            st.rerun()
+                
+                with col2:
+                    # Share filter button
+                    partners = db.get_partners(st.session_state['user']['id'])
+                    if partners:
+                        share_with = st.selectbox(
+                            "Share with",
+                            options=[p['username'] for p in partners],
+                            key=f"share_filter_{filter_data['id']}"
+                        )
+                        if st.button("Share Filter"):
+                            partner_id = next(p['id'] for p in partners if p['username'] == share_with)
+                            success, error = db.share_filter(
+                                filter_data['id'],
+                                st.session_state['user']['id'],
+                                partner_id
+                            )
+                            if success:
+                                st.success(f"Filter shared with {share_with}")
+                            else:
+                                st.error(error or "Failed to share filter")
+                    else:
+                        st.info("Add partners to share filters")
+
+    # Shared Filters
+    with st.expander("Shared With Me", expanded=True):
+        shared_filters = db.get_shared_filters(st.session_state['user']['id'])
+        if shared_filters:
+            filter_options = ["None"] + [
+                f"{f['name']} (by {f['shared_by']}) - {f['filter_column']}: {f['filter_text']}"
+                for f in shared_filters
+            ]
+            selected_shared = st.selectbox(
+                "Select a shared filter",
+                options=filter_options,
+                key="selected_shared_filter"
+            )
+            
+            if selected_shared != "None":
+                selected_idx = filter_options.index(selected_shared) - 1  # Adjust for "None" option
+                filter_data = shared_filters[selected_idx]
+                
+                # Set filter values for the shared filter
+                if filter_data['filter_column'] != st.session_state.get('filter_column') or \
+                   filter_data['filter_text'] != st.session_state.get('filter_text'):
+                    st.session_state.filter_column = filter_data['filter_column']
+                    st.session_state.filter_text = filter_data['filter_text']
+        else:
+            st.info("No filters have been shared with you")
+
+    # Partnerships Section
+    with st.expander("Manage Partnerships", expanded=False):
+        # Send Partnership Request
+        partner_username = st.text_input("Add partner by username")
+        if st.button("Send Request"):
+            if partner_username:
+                partnership_id, error = db.send_partnership_request(
+                    st.session_state['user']['id'],
+                    partner_username
+                )
+                if partnership_id:
+                    st.success(f"Partnership request sent to {partner_username}")
+                else:
+                    st.error(error or "Failed to send request")
+
+        # Partnership Requests
+        requests = db.get_partnership_requests(st.session_state['user']['id'])
+        if requests:
+            st.subheader("Partnership Requests")
+            for req in requests:
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    st.write(f"From: {req['username']}")
+                with col2:
+                    if st.button("Accept", key=f"accept_{req['id']}"):
+                        if db.update_partnership_status(req['id'], st.session_state['user']['id'], 'accepted'):
+                            st.success("Partnership accepted!")
+                            st.rerun()
+                with col3:
+                    if st.button("Reject", key=f"reject_{req['id']}"):
+                        if db.update_partnership_status(req['id'], st.session_state['user']['id'], 'rejected'):
+                            st.success("Partnership rejected!")
+                            st.rerun()
+
+        # Current Partners
+        partners = db.get_partners(st.session_state['user']['id'])
+        if partners:
+            st.subheader("Current Partners")
+            for partner in partners:
+                st.write(f"• {partner['username']}")
 
 # Get all transactions first for total metrics
 all_df = transaction_manager.get_transactions_df()

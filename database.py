@@ -375,6 +375,171 @@ class Database:
                     raise Exception("Failed to delete transaction") from e
                 self.connect()
 
+    def send_partnership_request(self, user_id, partner_username):
+        """Send a partnership request to another user"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    # First get the partner's user ID
+                    cur.execute("""
+                        SELECT id FROM users WHERE username = %s;
+                    """, (partner_username,))
+                    partner = cur.fetchone()
+                    if not partner:
+                        return None, "User not found"
+                    
+                    partner_id = partner[0]
+                    if partner_id == user_id:
+                        return None, "Cannot partner with yourself"
+
+                    # Check if partnership already exists
+                    cur.execute("""
+                        SELECT status FROM user_partnerships 
+                        WHERE (user_id = %s AND partner_id = %s)
+                        OR (user_id = %s AND partner_id = %s);
+                    """, (user_id, partner_id, partner_id, user_id))
+                    
+                    existing = cur.fetchone()
+                    if existing:
+                        return None, f"Partnership already exists with status: {existing[0]}"
+
+                    # Create the partnership request
+                    cur.execute("""
+                        INSERT INTO user_partnerships (user_id, partner_id, status)
+                        VALUES (%s, %s, 'pending')
+                        RETURNING id;
+                    """, (user_id, partner_id))
+                    self.conn.commit()
+                    return cur.fetchone()[0], None
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to send partnership request") from e
+                self.connect()
+
+    def get_partnership_requests(self, user_id):
+        """Get all pending partnership requests for a user"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT p.id, u.username, p.status, p.created_at
+                        FROM user_partnerships p
+                        JOIN users u ON u.id = p.user_id
+                        WHERE p.partner_id = %s AND p.status = 'pending'
+                        ORDER BY p.created_at DESC;
+                    """, (user_id,))
+                    columns = ['id', 'username', 'status', 'created_at']
+                    return [dict(zip(columns, row)) for row in cur.fetchall()]
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to get partnership requests") from e
+                self.connect()
+
+    def update_partnership_status(self, partnership_id, user_id, status):
+        """Update the status of a partnership request"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE user_partnerships
+                        SET status = %s
+                        WHERE id = %s AND partner_id = %s
+                        RETURNING id;
+                    """, (status, partnership_id, user_id))
+                    self.conn.commit()
+                    return cur.fetchone() is not None
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to update partnership status") from e
+                self.connect()
+
+    def get_partners(self, user_id):
+        """Get all accepted partners for a user"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT u.id, u.username
+                        FROM user_partnerships p
+                        JOIN users u ON (u.id = p.partner_id OR u.id = p.user_id)
+                        WHERE (p.user_id = %s OR p.partner_id = %s)
+                        AND p.status = 'accepted'
+                        AND u.id != %s;
+                    """, (user_id, user_id, user_id))
+                    columns = ['id', 'username']
+                    return [dict(zip(columns, row)) for row in cur.fetchall()]
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to get partners") from e
+                self.connect()
+
+    def share_filter(self, filter_id, owner_id, partner_id):
+        """Share a filter with a partner"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    # Verify partnership exists and is accepted
+                    cur.execute("""
+                        SELECT id FROM user_partnerships
+                        WHERE ((user_id = %s AND partner_id = %s)
+                        OR (user_id = %s AND partner_id = %s))
+                        AND status = 'accepted';
+                    """, (owner_id, partner_id, partner_id, owner_id))
+                    if not cur.fetchone():
+                        return False, "No active partnership found"
+
+                    # Share the filter
+                    cur.execute("""
+                        INSERT INTO shared_filters (filter_id, owner_id, shared_with_id)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (filter_id, owner_id, shared_with_id) DO NOTHING
+                        RETURNING id;
+                    """, (filter_id, owner_id, partner_id))
+                    self.conn.commit()
+                    return True, None
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to share filter") from e
+                self.connect()
+
+    def get_shared_filters(self, user_id):
+        """Get all filters shared with a user"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT 
+                            f.id,
+                            f.name,
+                            f.filter_column,
+                            f.filter_text,
+                            u.username as shared_by,
+                            sf.created_at as shared_at
+                        FROM shared_filters sf
+                        JOIN saved_filters f ON f.id = sf.filter_id
+                        JOIN users u ON u.id = sf.owner_id
+                        WHERE sf.shared_with_id = %s
+                        ORDER BY sf.created_at DESC;
+                    """, (user_id,))
+                    columns = ['id', 'name', 'filter_column', 'filter_text', 'shared_by', 'shared_at']
+                    return [dict(zip(columns, row)) for row in cur.fetchall()]
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to get shared filters") from e
+                self.connect()
+
     def __del__(self):
         """Safely close the database connection"""
         if hasattr(self, 'conn') and self.conn is not None:
