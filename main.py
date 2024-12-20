@@ -268,37 +268,44 @@ with st.sidebar:
                             st.rerun()
 
     # Saved Filters Section
-    st.header("My Filters")
-    saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
+    st.header("Filters Management")
     
-    if saved_filters:
-        # Separate owned and shared filters
-        owned_filters = [f for f in saved_filters if f['filter_type'] == 'owner']
-        shared_filters = [f for f in saved_filters if f['filter_type'] == 'shared']
-        
-        # My Filters section with sharing
+    # Create tabs for different filter sections
+    filter_tabs = st.tabs(["My Filters", "Shared With Me"])
+    
+    saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
+    owned_filters = [f for f in saved_filters if f['filter_type'] == 'owner'] if saved_filters else []
+    shared_filters = [f for f in saved_filters if f['filter_type'] == 'shared'] if saved_filters else []
+    
+    # My Filters tab
+    with filter_tabs[0]:
         if owned_filters:
-            st.subheader("Your Saved Filters")
+            # Filter selection
             selected_filter_idx = st.selectbox(
-                "Select a filter to view or share:",
+                "Select a filter:",
                 options=range(len(owned_filters)),
                 format_func=lambda x: owned_filters[x]['name'],
                 key="owned_filter_idx"
             )
             
             filter_data = owned_filters[selected_filter_idx]
-            st.write(f"Column: {filter_data['filter_column']}, Value: {filter_data['filter_text']}")
+            
+            # Display filter details
+            st.markdown(f"""
+            **Filter Details:**
+            - Column: `{filter_data['filter_column']}`
+            - Value: `{filter_data['filter_text']}`
+            """)
             
             # Share filter section
-            st.divider()
-            col1, col2 = st.columns([3, 1])
-            with col1:
+            with st.expander("Share This Filter", expanded=True):
+                st.write("Enter the username of the person you want to share this filter with:")
                 share_username = st.text_input(
-                    "Share with username:",
+                    "Username",
                     key=f"share_input_{filter_data['id']}"
                 )
-            with col2:
-                if st.button("Share", key=f"share_btn_{filter_data['id']}"):
+                
+                if st.button("Share Filter", key=f"share_btn_{filter_data['id']}", type="primary"):
                     if share_username:
                         try:
                             if db.share_filter(filter_data['id'],
@@ -312,6 +319,7 @@ with st.sidebar:
                     else:
                         st.warning("Please enter a username")
             
+            # Delete filter option
             if st.button("Delete Filter", key=f"delete_{filter_data['id']}", type="secondary"):
                 if db.delete_saved_filter(filter_data['id']):
                     st.success("Filter deleted!")
@@ -323,9 +331,9 @@ with st.sidebar:
             st.session_state.filter_text = filter_data['filter_text']
         else:
             st.info("You haven't saved any filters yet")
-        
-        # Shared Filters section
-        st.header("Shared With Me")
+    
+    # Shared Filters tab
+    with filter_tabs[1]:
         if shared_filters:
             selected_shared_idx = st.selectbox(
                 "Select a shared filter:",
@@ -335,7 +343,11 @@ with st.sidebar:
             )
             
             shared_filter = shared_filters[selected_shared_idx]
-            st.write(f"Column: {shared_filter['filter_column']}, Value: {shared_filter['filter_text']}")
+            st.markdown(f"""
+            **Filter Details:**
+            - Column: `{shared_filter['filter_column']}`
+            - Value: `{shared_filter['filter_text']}`
+            """)
             
             # Apply the selected shared filter
             st.session_state.filter_column = shared_filter['filter_column']
