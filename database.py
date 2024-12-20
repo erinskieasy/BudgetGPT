@@ -298,10 +298,10 @@ class Database:
                 self.ensure_connection()
                 with self.conn.cursor() as cur:
                     cur.execute("""
-                        INSERT INTO saved_filters (name, filter_column, filter_text, user_id)
-                        VALUES (%s, %s, %s, %s)
+                        INSERT INTO saved_filters (name, filter_column, filter_text, user_id, owner_id, is_shared)
+                        VALUES (%s, %s, %s, %s, %s, %s)
                         RETURNING id;
-                    """, (name, filter_column, filter_text, user_id))
+                    """, (name, filter_column, filter_text, user_id, user_id, False))
                     self.conn.commit()
                     return cur.fetchone()[0]
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
@@ -318,18 +318,31 @@ class Database:
                 with self.conn.cursor() as cur:
                     if user_id is not None:
                         cur.execute("""
-                            SELECT id, name, filter_column, filter_text
-                            FROM saved_filters
-                            WHERE user_id = %s
+                            SELECT f.id, f.name, f.filter_column, f.filter_text, 
+                                   f.owner_id, f.is_shared,
+                                   CASE 
+                                       WHEN f.owner_id = %s THEN 'owner'
+                                       ELSE 'shared'
+                                   END as filter_type
+                            FROM saved_filters f
+                            WHERE f.user_id = %s OR (
+                                f.id IN (
+                                    SELECT filter_id 
+                                    FROM filter_sharing 
+                                    WHERE shared_with_id = %s AND status = 'accepted'
+                                )
+                            )
                             ORDER BY name ASC
-                        """, (user_id,))
+                        """, (user_id, user_id, user_id))
                     else:
                         cur.execute("""
-                            SELECT id, name, filter_column, filter_text
+                            SELECT id, name, filter_column, filter_text, 
+                                   owner_id, is_shared, 'owner' as filter_type
                             FROM saved_filters
                             ORDER BY name ASC
                         """)
-                    columns = ['id', 'name', 'filter_column', 'filter_text']
+                    columns = ['id', 'name', 'filter_column', 'filter_text', 
+                             'owner_id', 'is_shared', 'filter_type']
                     results = cur.fetchall()
                     return [dict(zip(columns, row)) for row in results]
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
@@ -363,6 +376,148 @@ class Database:
             try:
                 self.ensure_connection()
                 with self.conn.cursor() as cur:
+    def share_filter(self, filter_id, owner_id, shared_with_username):
+        """Share a filter with another user"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    # First, verify filter ownership
+                    cur.execute("""
+                        SELECT id FROM saved_filters
+                        WHERE id = %s AND owner_id = %s
+                    """, (filter_id, owner_id))
+                    if not cur.fetchone():
+                        raise Exception("Filter not found or you don't have permission to share it")
+                    
+                    # Get the user ID of the username to share with
+                    cur.execute("""
+                        SELECT id FROM users
+                        WHERE username = %s
+                    """, (shared_with_username,))
+                    shared_user = cur.fetchone()
+                    if not shared_user:
+                        raise Exception(f"User {shared_with_username} not found")
+                    
+                    shared_with_id = shared_user[0]
+                    if shared_with_id == owner_id:
+                        raise Exception("Cannot share filter with yourself")
+
+                    # Create sharing invitation
+                    cur.execute("""
+                        INSERT INTO filter_sharing (filter_id, shared_with_id)
+                        VALUES (%s, %s)
+                        ON CONFLICT (filter_id, shared_with_id) 
+                        DO UPDATE SET status = 'pending'
+                        RETURNING id;
+                    """, (filter_id, shared_with_id))
+                    
+                    # Mark the filter as shared
+                    cur.execute("""
+                        UPDATE saved_filters
+                        SET is_shared = TRUE
+                        WHERE id = %s
+                    """, (filter_id,))
+                    
+                    self.conn.commit()
+                    return True
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to share filter") from e
+                self.connect()
+
+    def get_pending_filter_invitations(self, user_id):
+        """Get all pending filter sharing invitations for a user"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT fs.id as invitation_id, 
+                               f.id as filter_id,
+                               f.name as filter_name,
+                               u.username as shared_by,
+                               fs.created_at
+                        FROM filter_sharing fs
+                        JOIN saved_filters f ON fs.filter_id = f.id
+                        JOIN users u ON f.owner_id = u.id
+                        WHERE fs.shared_with_id = %s 
+                        AND fs.status = 'pending'
+                        ORDER BY fs.created_at DESC
+                    """, (user_id,))
+                    columns = ['invitation_id', 'filter_id', 'filter_name', 
+                             'shared_by', 'created_at']
+                    results = cur.fetchall()
+                    return [dict(zip(columns, row)) for row in results]
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to get pending invitations") from e
+                self.connect()
+
+    def handle_filter_invitation(self, invitation_id, user_id, accept=True):
+        """Accept or reject a filter sharing invitation"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    # Verify invitation exists and belongs to user
+                    cur.execute("""
+                        SELECT filter_id FROM filter_sharing
+                        WHERE id = %s AND shared_with_id = %s AND status = 'pending'
+                    """, (invitation_id, user_id))
+                    if not cur.fetchone():
+                        raise Exception("Invalid invitation")
+
+                    # Update invitation status
+                    status = 'accepted' if accept else 'rejected'
+                    cur.execute("""
+                        UPDATE filter_sharing
+                        SET status = %s
+                        WHERE id = %s AND shared_with_id = %s
+                        RETURNING filter_id
+                    """, (status, invitation_id, user_id))
+                    
+                    self.conn.commit()
+                    return True
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to handle invitation") from e
+                self.connect()
+
+    def get_filter_transactions(self, filter_id, user_id):
+        """Get transactions for a specific filter, checking access rights"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.ensure_connection()
+                with self.conn.cursor() as cur:
+                    # Check if user has access to this filter
+                    cur.execute("""
+                        SELECT f.filter_column, f.filter_text, f.owner_id
+                        FROM saved_filters f
+                        LEFT JOIN filter_sharing fs ON f.id = fs.filter_id
+                        WHERE f.id = %s AND (
+                            f.owner_id = %s OR
+                            (fs.shared_with_id = %s AND fs.status = 'accepted')
+                        )
+                    """, (filter_id, user_id, user_id))
+                    
+                    filter_data = cur.fetchone()
+                    if not filter_data:
+                        raise Exception("Filter not found or access denied")
+                    
+                    filter_column, filter_text, owner_id = filter_data
+                    
+                    # Get filtered transactions using the owner's user_id
+                    return self.filter_transactions(filter_column, filter_text, owner_id)
+            except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Failed to get filter transactions") from e
+                self.connect()
+
                     cur.execute("""
                         DELETE FROM transactions
                         WHERE id = %s

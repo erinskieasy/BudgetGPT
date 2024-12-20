@@ -112,13 +112,15 @@ if not st.session_state.get('user'):
 
     st.stop()
 
-# Initialize session state for filters
+# Initialize session state for filters and sharing
 # Initialize filter-related session state if not present
 for key, default_value in {
     'filter_column': "None",
     'filter_text': "",
     'filter_name': "",
-    'saved_filter': "None"
+    'saved_filter': "None",
+    'show_share_modal': False,
+    'sharing_filter_id': None
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default_value
@@ -238,38 +240,113 @@ with st.sidebar:
     else:
         gpt_processor.set_exchange_rate(current_rate)
 
+    # Filter Sharing Invitations Section
+    st.header("Filter Invitations")
+    pending_invitations = db.get_pending_filter_invitations(st.session_state['user']['id'])
+    if pending_invitations:
+        st.subheader("Pending Invitations")
+        for invitation in pending_invitations:
+            with st.container():
+                col1, col2, col3 = st.columns([3, 1, 1])
+                with col1:
+                    st.write(f"Filter: {invitation['filter_name']} (shared by {invitation['shared_by']})")
+                with col2:
+                    if st.button("Accept", key=f"accept_{invitation['invitation_id']}"):
+                        if db.handle_filter_invitation(invitation['invitation_id'], 
+                                                    st.session_state['user']['id'], 
+                                                    accept=True):
+                            st.success("Filter invitation accepted!")
+                            time.sleep(0.5)
+                            st.rerun()
+                with col3:
+                    if st.button("Reject", key=f"reject_{invitation['invitation_id']}"):
+                        if db.handle_filter_invitation(invitation['invitation_id'], 
+                                                    st.session_state['user']['id'], 
+                                                    accept=False):
+                            st.success("Filter invitation rejected!")
+                            time.sleep(0.5)
+                            st.rerun()
+
     # Saved Filters Section
     st.header("Saved Filters")
     saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
+    
     if saved_filters:
-        filter_options = ["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
+        # Separate owned and shared filters
+        owned_filters = [f for f in saved_filters if f['filter_type'] == 'owner']
+        shared_filters = [f for f in saved_filters if f['filter_type'] == 'shared']
+        
+        # Create display options for both types
+        filter_options = ["None"]
+        if owned_filters:
+            filter_options.extend([f"(My) {f['name']} ({f['filter_column']}: {f['filter_text']})" 
+                                for f in owned_filters])
+        if shared_filters:
+            filter_options.extend([f"(Shared) {f['name']} ({f['filter_column']}: {f['filter_text']})" 
+                                for f in shared_filters])
+        
         selected_filter = st.selectbox(
-            "Select a saved filter",
+            "Select a filter",
             options=filter_options,
             key="saved_filter",
             on_change=handle_saved_filter_change
         )
         
         if selected_filter != "None":
-            filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
+            is_shared = selected_filter.startswith("(Shared)")
+            filter_name = selected_filter.split(') ')[1] if is_shared else selected_filter[5:]
+            filter_options = ([f"(Shared) {f['name']} ({f['filter_column']}: {f['filter_text']})" 
+                             for f in shared_filters] if is_shared 
+                            else [f"(My) {f['name']} ({f['filter_column']}: {f['filter_text']})" 
+                                 for f in owned_filters])
+            
             selected_idx = filter_options.index(selected_filter)
-            filter_data = saved_filters[selected_idx]
+            filter_data = shared_filters[selected_idx] if is_shared else owned_filters[selected_idx]
             
             # Set filter values
             if filter_data['filter_column'] != st.session_state.get('filter_column') or \
                filter_data['filter_text'] != st.session_state.get('filter_text'):
                 st.session_state.filter_column = filter_data['filter_column']
                 st.session_state.filter_text = filter_data['filter_text']
-
-            # Delete filter button
-            delete_button_key = f"delete_filter_{filter_data['id']}"
-            if st.button("Delete Filter", key=delete_button_key):
-                if db.delete_saved_filter(filter_data['id']):
-                    st.success("Filter deleted successfully!")
-                    # Clear cache and force rerun without modifying session state
-                    st.cache_resource.clear()
-                    time.sleep(0.1)
-                    st.rerun()
+            
+            # Only show delete and share options for owned filters
+            if not is_shared:
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    delete_button_key = f"delete_filter_{filter_data['id']}"
+                    if st.button("Delete Filter", key=delete_button_key):
+                        if db.delete_saved_filter(filter_data['id']):
+                            st.success("Filter deleted successfully!")
+                            time.sleep(0.5)
+                            st.rerun()
+                
+                with col2:
+                    share_button_key = f"share_filter_{filter_data['id']}"
+                    if st.button("Share Filter", key=share_button_key):
+                        st.session_state.sharing_filter_id = filter_data['id']
+                        st.session_state.show_share_modal = True
+            
+            # Show share modal if needed
+            if st.session_state.get('show_share_modal', False):
+                share_username = st.text_input("Enter username to share with",
+                                            key="share_username_input")
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button("Share", key="confirm_share"):
+                        try:
+                            if db.share_filter(st.session_state.sharing_filter_id,
+                                            st.session_state['user']['id'],
+                                            share_username):
+                                st.success(f"Filter shared with {share_username}!")
+                                st.session_state.show_share_modal = False
+                                time.sleep(0.5)
+                                st.rerun()
+                        except Exception as e:
+                            st.error(str(e))
+                with col2:
+                    if st.button("Cancel", key="cancel_share"):
+                        st.session_state.show_share_modal = False
+                        st.rerun()
 
 # Get all transactions first for total metrics
 all_df = transaction_manager.get_transactions_df()
