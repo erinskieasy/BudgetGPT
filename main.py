@@ -147,27 +147,7 @@ with st.sidebar:
                     st.success("Filter deleted successfully!")
                     reset_filter_form()
 
-    # Saved Filters Section in Sidebar
-    st.title("Saved Filters")
-    saved_filters = db.get_saved_filters()
-    if saved_filters:
-        filter_options = ["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
-        st.selectbox(
-            "Select a saved filter",
-            filter_options,
-            key="saved_filter",
-            on_change=handle_saved_filter_change
-        )
-        
-        if st.session_state.saved_filter != "None":
-            selected_idx = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters].index(st.session_state.saved_filter)
-            filter_data = saved_filters[selected_idx]
-            
-            # Delete filter button
-            if st.button(f"Delete '{filter_data['name']}'"):
-                if db.delete_saved_filter(filter_data['id']):
-                    st.success("Filter deleted successfully!")
-                    reset_filter_form()
+    
 
 
 # Initialize state if not exists
