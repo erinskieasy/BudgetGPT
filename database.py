@@ -51,6 +51,7 @@ class Database:
                             type VARCHAR(50) NOT NULL,
                             description TEXT,
                             amount DECIMAL(10,2) NOT NULL,
+                            user_id INTEGER,
                             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         )
                     """)
@@ -83,18 +84,18 @@ class Database:
                     raise Exception("Failed to setup tables") from e
                 self.connect()
 
-    def add_transaction(self, date, type_trans, description, amount):
-        """Add a transaction with retry logic"""
+    def add_transaction(self, date, type_trans, description, amount, user_id=None):
+        """Add a new transaction with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 self.ensure_connection()
                 with self.conn.cursor() as cur:
                     cur.execute("""
-                        INSERT INTO transactions (date, type, description, amount)
-                        VALUES (%s, %s, %s, %s)
+                        INSERT INTO transactions (date, type, description, amount, user_id)
+                        VALUES (%s, %s, %s, %s, %s)
                         RETURNING id;
-                    """, (date, type_trans, description, amount))
+                    """, (date, type_trans, description, amount, user_id))
                     self.conn.commit()
                     return cur.fetchone()[0]
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
@@ -148,18 +149,26 @@ class Database:
         return []  # Return empty list if all retries failed
 
 
-    def get_transactions(self):
+    def get_transactions(self, user_id=None):
         """Get all transactions with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 self.ensure_connection()
                 with self.conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT id, date, type, description, amount
-                        FROM transactions
-                        ORDER BY date DESC, created_at DESC
-                    """)
+                    if user_id is not None:
+                        cur.execute("""
+                            SELECT id, date, type, description, amount
+                            FROM transactions
+                            WHERE user_id = %s
+                            ORDER BY date DESC, created_at DESC
+                        """, (user_id,))
+                    else:
+                        cur.execute("""
+                            SELECT id, date, type, description, amount
+                            FROM transactions
+                            ORDER BY date DESC, created_at DESC
+                        """)
                     columns = ['id', 'date', 'type', 'description', 'amount']
                     results = cur.fetchall()
                     return [dict(zip(columns, row)) for row in results]

@@ -4,6 +4,11 @@ import pandas as pd
 class TransactionManager:
     def __init__(self, database):
         self.db = database
+        self.user_id = None
+
+    def set_user_id(self, user_id):
+        """Set the current user ID for transaction operations."""
+        self.user_id = user_id
 
     def add_transaction(self, transaction_data):
         # Validate and process the transaction data
@@ -18,12 +23,13 @@ class TransactionManager:
                 raise ValueError("Invalid transaction type")
 
             # Add to database
-            return self.db.add_transaction(date, type_trans, description, amount)
+            return self.db.add_transaction(date, type_trans, description, amount, user_id=self.user_id)
         except (ValueError, KeyError) as e:
             raise ValueError(f"Invalid transaction data: {str(e)}")
 
     def get_transactions_df(self):
-        transactions = self.db.get_transactions()
+        """Get all transactions as a pandas DataFrame"""
+        transactions = self.db.get_transactions(user_id=self.user_id)
         if not transactions:
             return pd.DataFrame(columns=['date', 'type', 'description', 'amount'])
         
@@ -35,7 +41,7 @@ class TransactionManager:
         if not filter_column or filter_column == "None" or not filter_text:
             return self.get_transactions_df()
         
-        transactions = self.db.filter_transactions(filter_column, filter_text)
+        transactions = self.db.filter_transactions(filter_column, filter_text, user_id=self.user_id)
         if not transactions:
             return pd.DataFrame(columns=['date', 'type', 'description', 'amount'])
         
@@ -97,7 +103,7 @@ class TransactionManager:
         stats = {
             'total_expenses': df[df['type'] == 'expense']['amount'].sum(),
             'total_subscriptions': df[df['type'] == 'subscription']['amount'].sum(),
-            'current_balance': self.db.get_balance(),
+            'current_balance': self.db.get_balance(user_id=self.user_id), #added user_id here
         }
 
         # Monthly breakdown

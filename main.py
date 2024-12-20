@@ -8,6 +8,7 @@ from database import Database
 from gpt_processor import GPTProcessor
 from transaction_manager import TransactionManager
 from serve_static import serve_static_files
+from auth import Auth
 
 def reset_filter_form():
     """Reset all filter-related session state variables"""
@@ -37,11 +38,79 @@ def handle_filter_column_change():
         st.session_state.saved_filter = "None"
 
 # Initialize application components
+# Initialize authentication
+@st.cache_resource
+def init_auth():
+    return Auth()
+
+auth = init_auth()
+
+# Initialize session state for authentication
+if 'user' not in st.session_state:
+    st.session_state['user'] = None
+
+def login_user(username, password):
+    user = auth.authenticate_user(username, password)
+    if user:
+        st.session_state['user'] = user
+        token = auth.create_access_token({"user_id": user["id"]})
+        st.session_state['token'] = token
+        return True
+    return False
+
+def logout_user():
+    st.session_state['user'] = None
+    st.session_state['token'] = None
+    st.rerun()
+
+# Authentication UI
+if not st.session_state.get('user'):
+    st.title("Login")
+    tab1, tab2 = st.tabs(["Login", "Register"])
+    
+    with tab1:
+        with st.form("login_form"):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            submit = st.form_submit_button("Login")
+            
+            if submit:
+                if login_user(username, password):
+                    st.success("Login successful!")
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password")
+    
+    with tab2:
+        with st.form("register_form"):
+            new_username = st.text_input("Username")
+            new_password = st.text_input("Password", type="password")
+            confirm_password = st.text_input("Confirm Password", type="password")
+            register = st.form_submit_button("Register")
+            
+            if register:
+                if new_password != confirm_password:
+                    st.error("Passwords do not match")
+                else:
+                    try:
+                        user = auth.register_user(new_username, new_password)
+                        st.success("Registration successful! Please login.")
+                        time.sleep(1)
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(str(e))
+                    except Exception as e:
+                        st.error("Registration failed. Please try again.")
+    
+    st.stop()
 @st.cache_resource
 def init_components():
     db = Database()
     gpt = GPTProcessor()
-    return TransactionManager(db), gpt, db
+    transaction_manager = TransactionManager(db)
+    if st.session_state.get('user'):
+        transaction_manager.set_user_id(st.session_state['user']['id'])
+    return transaction_manager, gpt, db
 
 # Page configuration and PWA setup
 st.set_page_config(
@@ -102,6 +171,12 @@ transaction_manager, gpt_processor, db = init_components()
 # Sidebar configuration
 with st.sidebar:
     st.title("Settings")
+    
+    # Add logout button
+    if st.session_state.get('user'):
+        st.write(f"Logged in as: {st.session_state['user']['username']}")
+        if st.button("Logout"):
+            logout_user()
     
     # Exchange Rate Section
     st.header("Exchange Rate")
