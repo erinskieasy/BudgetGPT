@@ -124,10 +124,11 @@ if 'saved_filter' not in st.session_state:
 
 def reset_filter_form():
     """Reset all filter-related session state variables"""
-    st.session_state['filter_column'] = "None"
-    st.session_state['filter_text'] = ""
-    st.session_state['filter_name'] = ""
-    st.session_state['saved_filter'] = "None"
+    # Instead of directly modifying session state, we'll use rerun
+    # to reset the state naturally through the widget initialization
+    st.cache_resource.clear()
+    time.sleep(0.1)  # Small delay to ensure UI updates
+    st.rerun()
 
 def handle_saved_filter_change():
     """Handle when a saved filter is selected"""
@@ -146,9 +147,10 @@ def handle_saved_filter_change():
 def handle_filter_column_change():
     """Handle when the filter column changes"""
     if st.session_state.filter_column == "None":
-        st.session_state.filter_text = ""
-        st.session_state.filter_name = ""
-        st.session_state.saved_filter = "None"
+        # Instead of directly modifying session state, trigger a rerun
+        st.cache_resource.clear()
+        time.sleep(0.1)  # Small delay to ensure UI updates
+        st.rerun()
 
 # Initialize application components
 transaction_manager, gpt_processor, db = init_components()
