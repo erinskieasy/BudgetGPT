@@ -113,14 +113,15 @@ if not st.session_state.get('user'):
     st.stop()
 
 # Initialize session state for filters
-if 'filter_column' not in st.session_state:
-    st.session_state['filter_column'] = "None"
-if 'filter_text' not in st.session_state:
-    st.session_state['filter_text'] = ""
-if 'filter_name' not in st.session_state:
-    st.session_state['filter_name'] = ""
-if 'saved_filter' not in st.session_state:
-    st.session_state['saved_filter'] = "None"
+# Initialize filter-related session state if not present
+for key, default_value in {
+    'filter_column': "None",
+    'filter_text': "",
+    'filter_name': "",
+    'saved_filter': "None"
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = default_value
 
 def reset_filter_form():
     """Reset all filter-related session state variables"""
@@ -255,13 +256,13 @@ with st.sidebar:
                 st.session_state.filter_text = filter_data['filter_text']
 
             # Delete filter button
-            if st.button(f"Delete '{filter_data['name']}'"):
+            delete_button_key = f"delete_filter_{filter_data['id']}"
+            if st.button("Delete Filter", key=delete_button_key):
                 if db.delete_saved_filter(filter_data['id']):
                     st.success("Filter deleted successfully!")
-                    st.session_state.saved_filter = "None"
-                    st.session_state.filter_column = "None"
-                    st.session_state.filter_text = ""
+                    # Clear cache and force rerun without modifying session state
                     st.cache_resource.clear()
+                    time.sleep(0.1)
                     st.rerun()
 
 # Get all transactions first for total metrics
