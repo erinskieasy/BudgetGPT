@@ -96,6 +96,29 @@ with st.sidebar:
         # Always ensure GPT processor has current rate
         gpt_processor.set_exchange_rate(current_rate)
 
+    # Saved Filters Section in Sidebar
+    st.title("Saved Filters")
+    saved_filters = db.get_saved_filters()
+    if saved_filters:
+        filter_options = ["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
+        st.selectbox(
+            "Select a saved filter",
+            filter_options,
+            key="saved_filter",
+            on_change=handle_saved_filter_change
+        )
+        
+        if st.session_state.saved_filter != "None":
+            selected_idx = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters].index(st.session_state.saved_filter)
+            filter_data = saved_filters[selected_idx]
+            
+            # Delete filter button
+            if st.button(f"Delete '{filter_data['name']}'"):
+                if db.delete_saved_filter(filter_data['id']):
+                    st.success("Filter deleted successfully!")
+                    reset_filter_form()
+
+
 # Initialize state if not exists
 if 'filter_column' not in st.session_state:
     st.session_state['filter_column'] = "None"
@@ -214,28 +237,6 @@ def handle_filter_column_change():
 
 # Quick Filters
 with st.expander("Quick Filters", expanded=True):
-    # Saved Filters Section
-    saved_filters = db.get_saved_filters()
-    if saved_filters:
-        st.subheader("Saved Filters")
-        filter_options = ["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
-        st.selectbox(
-            "Select a saved filter",
-            filter_options,
-            key="saved_filter",
-            on_change=handle_saved_filter_change
-        )
-        
-        if st.session_state.saved_filter != "None":
-            selected_idx = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters].index(st.session_state.saved_filter)
-            filter_data = saved_filters[selected_idx]
-            
-            # Delete filter button
-            if st.button(f"Delete '{filter_data['name']}'"):
-                if db.delete_saved_filter(filter_data['id']):
-                    st.success("Filter deleted successfully!")
-                    reset_filter_form()
-    
     # Filter inputs
     col1, col2 = st.columns([1, 2])
     with col1:
