@@ -45,8 +45,20 @@ def login_user(username, password):
     return False
 
 def logout_user():
+    # Clear all session state variables
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    
+    # Reinitialize essential session state variables
     st.session_state['user'] = None
     st.session_state['token'] = None
+    st.session_state['filter_column'] = "None"
+    st.session_state['filter_text'] = ""
+    st.session_state['filter_name'] = ""
+    st.session_state['saved_filter'] = "None"
+    
+    # Force component reinitialization
+    st.cache_resource.clear()
     st.rerun()
 
 # Initialize components
