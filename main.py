@@ -267,7 +267,7 @@ def handle_filter_column_change():
         st.session_state.saved_filter = "None"
 
 # Quick Filters
-with st.expander("Quick Filters", expanded=True):
+with st.expander("Quick Filters", expanded=False):
     # Filter inputs
     col1, col2 = st.columns([1, 2])
     with col1:
