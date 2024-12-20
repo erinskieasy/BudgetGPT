@@ -273,88 +273,91 @@ with st.sidebar:
     # Create tabs for different filter sections
     filter_tabs = st.tabs(["My Filters", "Shared With Me"])
     
+    # Get all filters
     saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
-    owned_filters = [f for f in saved_filters if f['owner_id'] == st.session_state['user']['id']] if saved_filters else []
-    shared_filters = [f for f in saved_filters if f['owner_id'] != st.session_state['user']['id']] if saved_filters else []
     
     # My Filters tab
     with filter_tabs[0]:
-        if owned_filters:
-            # Filter selection with None option
-            filter_options = ["None"] + list(range(len(owned_filters)))
-            selected_filter_option = st.selectbox(
+        # Get only owned filters
+        my_filters = []
+        if saved_filters:
+            my_filters = [f for f in saved_filters if f['owner_id'] == st.session_state['user']['id']]
+        
+        if my_filters:
+            # Create options list with "None" + filter names
+            filter_names = ["None"] + [f"{f['name']}" for f in my_filters]
+            selected_filter = st.selectbox(
                 "Select a filter:",
-                options=filter_options,
-                format_func=lambda x: "None" if x == "None" else owned_filters[x]['name'],
-                key="owned_filter_idx"
+                options=filter_names,
+                key="my_filter_select"
             )
             
-            if selected_filter_option != "None":
-                filter_data = owned_filters[selected_filter_option]
-            
-            # Display filter details
-                st.markdown(f"""
-                **Filter Details:**
-                - Column: `{filter_data['filter_column']}`
-                - Value: `{filter_data['filter_text']}`
-                """)
+            # Handle filter selection
+            if selected_filter != "None":
+                # Find the selected filter data
+                filter_data = next(f for f in my_filters if f['name'] == selected_filter)
                 
-                # Filter actions
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("Share Filter", key=f"share_btn_{filter_data['id']}", type="primary"):
-                        st.session_state[f"show_share_{filter_data['id']}"] = True
-                with col2:
-                    if st.button("Delete Filter", key=f"delete_{filter_data['id']}", type="secondary"):
-                        if db.delete_saved_filter(filter_data['id']):
-                            st.success("Filter deleted!")
-                            time.sleep(0.5)
-                            st.rerun()
+                # Show filter details
+                st.write(f"Column: {filter_data['filter_column']}")
+                st.write(f"Value: {filter_data['filter_text']}")
                 
-                # Show sharing interface if button was clicked
-                if st.session_state.get(f"show_share_{filter_data['id']}", False):
-                    st.text_input(
-                        "Enter username to share with:",
-                        key=f"share_input_{filter_data['id']}"
-                    )
-                    share_username = st.session_state.get(f"share_input_{filter_data['id']}")
-                    
+                # Share and Delete buttons
+                if st.button("Share Filter"):
+                    st.session_state.show_share_input = True
+                
+                # Show share input if button was clicked
+                if st.session_state.get('show_share_input', False):
+                    share_username = st.text_input("Enter username to share with:")
                     if share_username:
                         try:
-                            if db.share_filter(filter_data['id'],
+                            if db.share_filter(filter_data['id'], 
                                          st.session_state['user']['id'],
                                          share_username):
                                 st.success(f"Filter shared with {share_username}!")
-                                st.session_state[f"show_share_{filter_data['id']}"] = False
+                                st.session_state.show_share_input = False
                                 time.sleep(0.5)
                                 st.rerun()
                         except Exception as e:
                             st.error(str(e))
                 
-                # Apply the selected filter
+                if st.button("Delete Filter", type="secondary"):
+                    if db.delete_saved_filter(filter_data['id']):
+                        st.success("Filter deleted!")
+                        time.sleep(0.5)
+                        st.rerun()
+                
+                # Apply selected filter
                 st.session_state.filter_column = filter_data['filter_column']
                 st.session_state.filter_text = filter_data['filter_text']
+            else:
+                # Clear filter when None is selected
+                st.session_state.filter_column = "None"
+                st.session_state.filter_text = ""
         else:
             st.info("You haven't saved any filters yet")
     
     # Shared Filters tab
     with filter_tabs[1]:
+        # Get only shared filters
+        shared_filters = []
+        if saved_filters:
+            shared_filters = [f for f in saved_filters if f['owner_id'] != st.session_state['user']['id']]
+        
         if shared_filters:
-            selected_shared_idx = st.selectbox(
+            # Create options list with filter names
+            shared_filter_names = [f"{f['name']}" for f in shared_filters]
+            selected_shared = st.selectbox(
                 "Select a shared filter:",
-                options=range(len(shared_filters)),
-                format_func=lambda x: f"{shared_filters[x]['name']} (from {shared_filters[x]['owner_id']})",
-                key="shared_filter_idx"
+                options=shared_filter_names,
+                key="shared_filter_select"
             )
             
-            shared_filter = shared_filters[selected_shared_idx]
-            st.markdown(f"""
-            **Filter Details:**
-            - Column: `{shared_filter['filter_column']}`
-            - Value: `{shared_filter['filter_text']}`
-            """)
+            # Find and display selected shared filter
+            shared_filter = next(f for f in shared_filters if f['name'] == selected_shared)
+            st.write(f"Column: {shared_filter['filter_column']}")
+            st.write(f"Value: {shared_filter['filter_text']}")
             
-            # Apply the selected shared filter
+            # Apply selected shared filter
             st.session_state.filter_column = shared_filter['filter_column']
             st.session_state.filter_text = shared_filter['filter_text']
         else:
