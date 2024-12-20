@@ -290,7 +290,7 @@ class Database:
                     raise Exception(f"Failed to update setting {key}") from e
                 self.connect()
 
-    def save_filter(self, name, filter_column, filter_text):
+    def save_filter(self, name, filter_column, filter_text, user_id=None):
         """Save a filter preset with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
@@ -298,10 +298,10 @@ class Database:
                 self.ensure_connection()
                 with self.conn.cursor() as cur:
                     cur.execute("""
-                        INSERT INTO saved_filters (name, filter_column, filter_text)
-                        VALUES (%s, %s, %s)
+                        INSERT INTO saved_filters (name, filter_column, filter_text, user_id)
+                        VALUES (%s, %s, %s, %s)
                         RETURNING id;
-                    """, (name, filter_column, filter_text))
+                    """, (name, filter_column, filter_text, user_id))
                     self.conn.commit()
                     return cur.fetchone()[0]
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
@@ -309,18 +309,26 @@ class Database:
                     raise Exception("Failed to save filter") from e
                 self.connect()
 
-    def get_saved_filters(self):
+    def get_saved_filters(self, user_id=None):
         """Get all saved filters with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 self.ensure_connection()
                 with self.conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT id, name, filter_column, filter_text
-                        FROM saved_filters
-                        ORDER BY name ASC
-                    """)
+                    if user_id is not None:
+                        cur.execute("""
+                            SELECT id, name, filter_column, filter_text
+                            FROM saved_filters
+                            WHERE user_id = %s
+                            ORDER BY name ASC
+                        """, (user_id,))
+                    else:
+                        cur.execute("""
+                            SELECT id, name, filter_column, filter_text
+                            FROM saved_filters
+                            ORDER BY name ASC
+                        """)
                     columns = ['id', 'name', 'filter_column', 'filter_text']
                     results = cur.fetchall()
                     return [dict(zip(columns, row)) for row in results]

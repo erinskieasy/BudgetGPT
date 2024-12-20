@@ -236,7 +236,7 @@ with st.sidebar:
 
     # Saved Filters Section
     st.header("Saved Filters")
-    saved_filters = db.get_saved_filters()
+    saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
     if saved_filters:
         filter_options = ["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
         st.selectbox(
@@ -445,7 +445,7 @@ with st.expander("Quick Filters", expanded=False):
                 if not filter_name:
                     st.error("Please enter a name for the filter")
                 else:
-                    db.save_filter(filter_name, filter_column, filter_text)
+                    db.save_filter(filter_name, filter_column, filter_text, user_id=st.session_state['user']['id'])
                     st.success(f"Filter '{filter_name}' saved!")
                     # Clear form inputs
                     st.session_state.filter_name = ""
