@@ -9,6 +9,33 @@ from gpt_processor import GPTProcessor
 from transaction_manager import TransactionManager
 from serve_static import serve_static_files
 
+def reset_filter_form():
+    """Reset all filter-related session state variables"""
+    st.session_state['filter_column'] = "None"
+    st.session_state['filter_text'] = ""
+    st.session_state['filter_name'] = ""
+    st.session_state['saved_filter'] = "None"
+
+def handle_saved_filter_change():
+    """Handle when a saved filter is selected"""
+    if st.session_state.saved_filter != "None":
+        saved_filters = db.get_saved_filters()
+        filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
+        if st.session_state.saved_filter in filter_options:
+            selected_idx = filter_options.index(st.session_state.saved_filter)
+            filter_data = saved_filters[selected_idx]
+            st.session_state.filter_column = filter_data['filter_column']
+            st.session_state.filter_text = filter_data['filter_text']
+    else:
+        reset_filter_form()
+
+def handle_filter_column_change():
+    """Handle when the filter column changes"""
+    if st.session_state.filter_column == "None":
+        st.session_state.filter_text = ""
+        st.session_state.filter_name = ""
+        st.session_state.saved_filter = "None"
+
 # Initialize application components
 @st.cache_resource
 def init_components():
@@ -75,7 +102,9 @@ transaction_manager, gpt_processor, db = init_components()
 # Sidebar configuration
 with st.sidebar:
     st.title("Settings")
-    # Get current exchange rate from database
+    
+    # Exchange Rate Section
+    st.header("Exchange Rate")
     current_rate = float(db.get_setting('exchange_rate') or 155.0)
     
     exchange_rate = st.number_input(
@@ -95,6 +124,28 @@ with st.sidebar:
     else:
         # Always ensure GPT processor has current rate
         gpt_processor.set_exchange_rate(current_rate)
+    
+    # Saved Filters Section
+    st.header("Saved Filters")
+    saved_filters = db.get_saved_filters()
+    if saved_filters:
+        filter_options = ["None"] + [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
+        st.selectbox(
+            "Select a saved filter",
+            options=filter_options,
+            key="saved_filter",
+            on_change=handle_saved_filter_change
+        )
+        
+        if st.session_state.saved_filter != "None":
+            selected_idx = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters].index(st.session_state.saved_filter)
+            filter_data = saved_filters[selected_idx]
+            
+            # Delete filter button
+            if st.button(f"Delete '{filter_data['name']}'"):
+                if db.delete_saved_filter(filter_data['id']):
+                    st.success("Filter deleted successfully!")
+                    reset_filter_form()
 
     # Saved Filters Section in Sidebar
     st.title("Saved Filters")
