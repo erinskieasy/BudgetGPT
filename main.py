@@ -274,61 +274,66 @@ with st.sidebar:
     filter_tabs = st.tabs(["My Filters", "Shared With Me"])
     
     saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
-    owned_filters = [f for f in saved_filters if f['filter_type'] == 'owner'] if saved_filters else []
-    shared_filters = [f for f in saved_filters if f['filter_type'] == 'shared'] if saved_filters else []
+    owned_filters = [f for f in saved_filters if f['owner_id'] == st.session_state['user']['id']] if saved_filters else []
+    shared_filters = [f for f in saved_filters if f['owner_id'] != st.session_state['user']['id']] if saved_filters else []
     
     # My Filters tab
     with filter_tabs[0]:
         if owned_filters:
-            # Filter selection
-            selected_filter_idx = st.selectbox(
+            # Filter selection with None option
+            filter_options = ["None"] + list(range(len(owned_filters)))
+            selected_filter_option = st.selectbox(
                 "Select a filter:",
-                options=range(len(owned_filters)),
-                format_func=lambda x: owned_filters[x]['name'],
+                options=filter_options,
+                format_func=lambda x: "None" if x == "None" else owned_filters[x]['name'],
                 key="owned_filter_idx"
             )
             
-            filter_data = owned_filters[selected_filter_idx]
+            if selected_filter_option != "None":
+                filter_data = owned_filters[selected_filter_option]
             
             # Display filter details
-            st.markdown(f"""
-            **Filter Details:**
-            - Column: `{filter_data['filter_column']}`
-            - Value: `{filter_data['filter_text']}`
-            """)
-            
-            # Share filter section
-            with st.expander("Share This Filter", expanded=True):
-                st.write("Enter the username of the person you want to share this filter with:")
-                share_username = st.text_input(
-                    "Username",
-                    key=f"share_input_{filter_data['id']}"
-                )
+                st.markdown(f"""
+                **Filter Details:**
+                - Column: `{filter_data['filter_column']}`
+                - Value: `{filter_data['filter_text']}`
+                """)
                 
-                if st.button("Share Filter", key=f"share_btn_{filter_data['id']}", type="primary"):
+                # Filter actions
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Share Filter", key=f"share_btn_{filter_data['id']}", type="primary"):
+                        st.session_state[f"show_share_{filter_data['id']}"] = True
+                with col2:
+                    if st.button("Delete Filter", key=f"delete_{filter_data['id']}", type="secondary"):
+                        if db.delete_saved_filter(filter_data['id']):
+                            st.success("Filter deleted!")
+                            time.sleep(0.5)
+                            st.rerun()
+                
+                # Show sharing interface if button was clicked
+                if st.session_state.get(f"show_share_{filter_data['id']}", False):
+                    st.text_input(
+                        "Enter username to share with:",
+                        key=f"share_input_{filter_data['id']}"
+                    )
+                    share_username = st.session_state.get(f"share_input_{filter_data['id']}")
+                    
                     if share_username:
                         try:
                             if db.share_filter(filter_data['id'],
                                          st.session_state['user']['id'],
                                          share_username):
                                 st.success(f"Filter shared with {share_username}!")
+                                st.session_state[f"show_share_{filter_data['id']}"] = False
                                 time.sleep(0.5)
                                 st.rerun()
                         except Exception as e:
                             st.error(str(e))
-                    else:
-                        st.warning("Please enter a username")
-            
-            # Delete filter option
-            if st.button("Delete Filter", key=f"delete_{filter_data['id']}", type="secondary"):
-                if db.delete_saved_filter(filter_data['id']):
-                    st.success("Filter deleted!")
-                    time.sleep(0.5)
-                    st.rerun()
-            
-            # Apply the selected filter
-            st.session_state.filter_column = filter_data['filter_column']
-            st.session_state.filter_text = filter_data['filter_text']
+                
+                # Apply the selected filter
+                st.session_state.filter_column = filter_data['filter_column']
+                st.session_state.filter_text = filter_data['filter_text']
         else:
             st.info("You haven't saved any filters yet")
     
