@@ -526,14 +526,15 @@ class Database:
                             f.filter_column,
                             f.filter_text,
                             u.username as shared_by,
-                            sf.created_at as shared_at
+                            sf.created_at as shared_at,
+                            sf.owner_id
                         FROM shared_filters sf
                         JOIN saved_filters f ON f.id = sf.filter_id
                         JOIN users u ON u.id = sf.owner_id
                         WHERE sf.shared_with_id = %s
                         ORDER BY sf.created_at DESC;
                     """, (user_id,))
-                    columns = ['id', 'name', 'filter_column', 'filter_text', 'shared_by', 'shared_at']
+                    columns = ['id', 'name', 'filter_column', 'filter_text', 'shared_by', 'shared_at', 'owner_id']
                     return [dict(zip(columns, row)) for row in cur.fetchall()]
             except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
                 if attempt == max_retries - 1:

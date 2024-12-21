@@ -6,9 +6,22 @@ class TransactionManager:
         self.db = database
         self.user_id = None
 
-    def set_user_id(self, user_id):
-        """Set the current user ID for transaction operations."""
+    def set_user_id(self, user_id, temporary=False):
+        """Set the current user ID for transaction operations.
+        
+        Args:
+            user_id: The user ID to set
+            temporary: If True, stores the current user_id to restore later
+        """
+        if temporary and not hasattr(self, '_original_user_id'):
+            self._original_user_id = self.user_id
         self.user_id = user_id
+
+    def restore_user_id(self):
+        """Restore the original user ID if a temporary one was set."""
+        if hasattr(self, '_original_user_id'):
+            self.user_id = self._original_user_id
+            delattr(self, '_original_user_id')
 
     def add_transaction(self, transaction_data):
         # Validate and process the transaction data
