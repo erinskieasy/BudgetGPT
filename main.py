@@ -133,10 +133,15 @@ def reset_filter_form():
 
 def handle_saved_filter_change():
     """Handle when a saved filter is selected"""
-    if st.session_state.saved_filter == "None":
-        # Reset Quick Filters when None is selected
+    # Reset both saved filter and quick filter when None is selected
+    if st.session_state.get('saved_filter') == "None" or st.session_state.get('selected_shared_filter') == "None":
         st.session_state.filter_column = "None"
         st.session_state.filter_text = ""
+        # Reset the other filter selector if it wasn't the one that triggered this
+        if st.session_state.get('saved_filter') == "None":
+            st.session_state.selected_shared_filter = "None"
+        else:
+            st.session_state.saved_filter = "None"
         return "None", ""
         
     saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
