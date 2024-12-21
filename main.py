@@ -309,7 +309,8 @@ with st.sidebar:
             selected_shared = st.selectbox(
                 "Select a shared filter",
                 options=filter_options,
-                key="selected_shared_filter"
+                key="selected_shared_filter",
+                on_change=handle_saved_filter_change  # Use the same handler as personal filters
             )
             
             if selected_shared != "None":
