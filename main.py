@@ -470,7 +470,7 @@ else:
 # Input section below transaction table
 input_method = st.radio(
     "Choose input method:",
-    ["Text Input", "Receipt Upload", "Bulk Upload"]
+    ["Text Input", "Receipt Upload"]
 )
 
 # Text input section
@@ -531,7 +531,7 @@ if input_method == "Text Input":
                 st.error(f"Error processing input: {str(e)}")
 
 # Receipt upload section
-elif input_method == "Receipt Upload":
+else:
     uploaded_file = st.file_uploader("Choose a receipt image", type=['png', 'jpg', 'jpeg'])
 
     if uploaded_file is not None:
@@ -544,114 +544,6 @@ elif input_method == "Receipt Upload":
                     st.success("Receipt processed successfully!")
                 except Exception as e:
                     st.error(f"Error processing receipt: {str(e)}")
-else:  # Bulk Upload
-    st.write("Upload your transaction history file (CSV or Excel)")
-    st.write("Required columns: date, type, description, amount")
-    st.write("Date format should be YYYY-MM-DD (e.g., 2024-01-01)")
-    st.write("Example format:")
-    st.code("""
-date,type,description,amount
-2024-01-01,income,Salary,5000.00
-2024-01-02,expense,Groceries,150.25
-2024-01-03,subscription,Netflix,14.99
-    """)
-    
-    uploaded_file = st.file_uploader("Choose a file", type=['csv', 'xlsx'])
-    
-    if uploaded_file is not None:
-        try:
-            if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
-            else:
-                df = pd.read_excel(uploaded_file)
-            
-            # Validate required columns
-            required_columns = ['date', 'type', 'description', 'amount']
-            missing_columns = [col for col in required_columns if col not in df.columns]
-            
-            if missing_columns:
-                st.error(f"Missing required columns: {', '.join(missing_columns)}")
-            else:
-                # Preview the data
-                st.write("Preview of the data to be imported:")
-                st.dataframe(df.head())
-                
-                if st.button("Import Transactions"):
-                    with st.spinner("Importing transactions..."):
-                        try:
-                            # Validate date format first
-                            try:
-                                if not pd.api.types.is_datetime64_any_dtype(df['date']):
-                                    df['date'] = pd.to_datetime(df['date']).dt.date
-                                else:
-                                    df['date'] = df['date'].dt.date
-                            except ValueError:
-                                st.error("Invalid date format. Please ensure all dates are in YYYY-MM-DD format.")
-                                st.stop()
-                            except Exception as e:
-                                st.error(f"Error processing dates: {str(e)}")
-                                st.stop()
-                            
-                            # Validate transaction types
-                            valid_types = ['income', 'expense', 'subscription']
-                            invalid_types = df[~df['type'].isin(valid_types)]['type'].unique()
-                            if len(invalid_types) > 0:
-                                st.error(f"Invalid transaction types found: {', '.join(invalid_types)}")
-                                st.stop()
-                            
-                            # Validate amount format
-                            try:
-                                df['amount'] = pd.to_numeric(df['amount'])
-                            except ValueError:
-                                st.error("Invalid amount format found. Please ensure all amounts are numbers.")
-                                st.stop()
-                            
-                            # Begin transaction import
-                            success_count = 0
-                            transactions_to_import = []
-                            
-                            # First, validate all rows
-                            for idx, row in df.iterrows():
-                                try:
-                                    transaction = {
-                                        'date': row['date'],
-                                        'type': row['type'].strip().lower(),  # Normalize type values
-                                        'description': str(row['description']),
-                                        'amount': float(row['amount'])
-                                    }
-                                    transactions_to_import.append(transaction)
-                                except Exception as e:
-                                    st.error(f"Error in row {idx + 1}: {str(e)}")
-                                    st.stop()
-                            
-                            # If all validations pass, import the transactions
-                            with db.conn:  # Use transaction context
-                                for transaction in transactions_to_import:
-                                    transaction_manager.add_transaction(transaction)
-                                    success_count += 1
-                                db.conn.commit()  # Commit all transactions at once
-                            
-                            st.success(f"Successfully imported {success_count} transactions!")
-                            time.sleep(0.5)  # Brief pause to show success message
-                            st.rerun()
-                            
-                        except Exception as e:
-                            if hasattr(db.conn, 'rollback'):
-                                db.conn.rollback()  # Rollback on error
-                            st.error(f"Error during import: {str(e)}")
-                            st.stop()
-                        
-                        finally:
-                            # Ensure connection is in a good state
-                            if hasattr(db.conn, 'rollback'):
-                                try:
-                                    db.conn.rollback()
-                                except:
-                                    pass
-                        
-        except Exception as e:
-            st.error(f"Error reading file: {str(e)}")
-
 
 # Quick Filters
 with st.expander("Quick Filters", expanded=False):
