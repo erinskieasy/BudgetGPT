@@ -67,14 +67,9 @@ def init_components():
     db = Database()
     gpt = GPTProcessor()
     transaction_manager = TransactionManager(db)
+    if st.session_state.get('user'):
+        transaction_manager.set_user_id(st.session_state['user']['id'])
     return transaction_manager, gpt, db
-
-# Initialize components
-transaction_manager, gpt_processor, db = init_components()
-
-# Set user ID for transaction manager if user is logged in
-if st.session_state.get('user'):
-    transaction_manager.set_user_id(st.session_state['user']['id'])
 
 # Authentication UI
 if not st.session_state.get('user'):
@@ -322,18 +317,11 @@ with st.sidebar:
                 selected_idx = filter_options.index(selected_shared) - 1  # Adjust for "None" option
                 filter_data = shared_filters[selected_idx]
                 
-                # Set filter values and temporarily switch to partner's transactions
+                # Set filter values for the shared filter
                 if filter_data['filter_column'] != st.session_state.get('filter_column') or \
                    filter_data['filter_text'] != st.session_state.get('filter_text'):
                     st.session_state.filter_column = filter_data['filter_column']
                     st.session_state.filter_text = filter_data['filter_text']
-                    st.session_state['viewing_partner_id'] = filter_data.get('owner_id')
-                    transaction_manager.set_user_id(filter_data.get('owner_id'), temporary=True)
-            else:
-                # Reset to original user's transactions
-                if st.session_state.get('viewing_partner_id'):
-                    transaction_manager.restore_user_id()
-                    del st.session_state['viewing_partner_id']
         else:
             st.info("No filters have been shared with you")
 
