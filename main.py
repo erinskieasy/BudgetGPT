@@ -133,19 +133,38 @@ def reset_filter_form():
 
 def handle_saved_filter_change():
     """Handle when a saved filter is selected"""
-    if st.session_state.saved_filter == "None":
-        # Reset Quick Filters when None is selected
+    # Check both personal and shared filter dropdowns
+    if (st.session_state.get('saved_filter') == "None" or 
+        st.session_state.get('selected_shared_filter') == "None"):
+        # Reset Quick Filters when None is selected in either dropdown
         st.session_state.filter_column = "None"
         st.session_state.filter_text = ""
         return "None", ""
-        
-    saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
-    if saved_filters:
-        filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
-        if st.session_state.saved_filter in filter_options:
-            selected_idx = filter_options.index(st.session_state.saved_filter)
-            filter_data = saved_filters[selected_idx]
-            return filter_data['filter_column'], filter_data['filter_text']
+    
+    # Handle personal filters
+    if st.session_state.get('saved_filter') != "None":
+        saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
+        if saved_filters:
+            filter_options = [f"{f['name']} ({f['filter_column']}: {f['filter_text']})" for f in saved_filters]
+            if st.session_state.saved_filter in filter_options:
+                selected_idx = filter_options.index(st.session_state.saved_filter)
+                filter_data = saved_filters[selected_idx]
+                return filter_data['filter_column'], filter_data['filter_text']
+                
+    # Handle shared filters
+    if st.session_state.get('selected_shared_filter') != "None":
+        shared_filters = db.get_shared_filters(st.session_state['user']['id'])
+        if shared_filters:
+            filter_options = [
+                f"{f['name']} (by {f['shared_by']}) - {f['filter_column']}: {f['filter_text']}"
+                for f in shared_filters
+            ]
+            selected = st.session_state.selected_shared_filter
+            if selected in filter_options:
+                selected_idx = filter_options.index(selected)
+                filter_data = shared_filters[selected_idx]
+                return filter_data['filter_column'], filter_data['filter_text']
+    
     return "None", ""
 
 def handle_filter_column_change():
