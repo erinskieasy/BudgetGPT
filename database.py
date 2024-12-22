@@ -130,11 +130,21 @@ class Database:
                             # Invalid amount, return empty result
                             return []
                     elif column == "type":
-                        query += " AND LOWER(type) LIKE LOWER(%s)"
-                        params.append(f"%{value}%")
+                        search_terms = [term.strip() for term in value.split(',')]
+                        type_conditions = []
+                        for term in search_terms:
+                            type_conditions.append("LOWER(type) LIKE LOWER(%s)")
+                            params.append(f"%{term}%")
+                        if type_conditions:
+                            query += f" AND ({' OR '.join(type_conditions)})"
                     elif column == "description":
-                        query += " AND LOWER(description) LIKE LOWER(%s)"
-                        params.append(f"%{value}%")
+                        search_terms = [term.strip() for term in value.split(',')]
+                        desc_conditions = []
+                        for term in search_terms:
+                            desc_conditions.append("LOWER(description) LIKE LOWER(%s)")
+                            params.append(f"%{term}%")
+                        if desc_conditions:
+                            query += f" AND ({' OR '.join(desc_conditions)})"
                     
                     query += " ORDER BY date DESC, created_at DESC"
                     cur.execute(query, tuple(params))
