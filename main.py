@@ -112,21 +112,16 @@ if not st.session_state.get('user'):
 
     st.stop()
 
-# Initialize all session states at the start
-if 'initialized' not in st.session_state:
-    default_states = {
-        'filter_column': "None",
-        'filter_text': "",
-        'filter_name': "",
-        'saved_filter': "None",
-        'selected_shared_filter': "None",
-        'viewing_partner_id': None,
-        'needs_reset': False,
-        'initialized': True
-    }
-    for key, value in default_states.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+# Initialize session state for filters
+# Initialize filter-related session state if not present
+for key, default_value in {
+    'filter_column': "None",
+    'filter_text': "",
+    'filter_name': "",
+    'saved_filter': "None"
+}.items():
+    if key not in st.session_state:
+        st.session_state[key] = default_value
 
 def reset_filter_form():
     """Reset all filter-related session state variables"""
@@ -138,16 +133,11 @@ def reset_filter_form():
 
 def handle_saved_filter_change():
     """Handle when a saved filter is selected"""
-    if st.session_state.get('needs_reset'):
+    if st.session_state.saved_filter == "None":
+        # Reset Quick Filters when None is selected
         st.session_state.filter_column = "None"
         st.session_state.filter_text = ""
-        st.session_state.filter_name = ""
-        st.session_state.needs_reset = False
         return "None", ""
-    
-    if st.session_state.saved_filter == "None":
-        st.session_state.needs_reset = True
-        st.rerun()
         
     saved_filters = db.get_saved_filters(user_id=st.session_state['user']['id'])
     if saved_filters:
@@ -338,9 +328,7 @@ with st.sidebar:
                 # Reset to original user's transactions
                 if st.session_state.get('viewing_partner_id'):
                     transaction_manager.restore_user_id()
-                    st.session_state.viewing_partner_id = None
-                    st.session_state.needs_reset = True
-                    st.rerun()
+                    del st.session_state['viewing_partner_id']
         else:
             st.info("No filters have been shared with you")
 
