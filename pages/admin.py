@@ -6,8 +6,12 @@ from datetime import datetime
 # Initialize database
 db = Database()
 
-# Page title
-st.title("Admin Dashboard")
+# Navigation
+col1, col2 = st.columns([1, 11])
+with col1:
+    st.page_link("main.py", label="← Back", icon="⬅️")
+with col2:
+    st.title("Admin Dashboard")
 
 # Check if user is logged in and has admin privileges
 if not st.session_state.get('user'):
