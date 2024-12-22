@@ -582,11 +582,14 @@ date,type,description,amount
                             # Validate date format first
                             try:
                                 if not pd.api.types.is_datetime64_any_dtype(df['date']):
-                                    df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d').dt.date
+                                    df['date'] = pd.to_datetime(df['date']).dt.date
                                 else:
                                     df['date'] = df['date'].dt.date
                             except ValueError:
                                 st.error("Invalid date format. Please ensure all dates are in YYYY-MM-DD format.")
+                                st.stop()
+                            except Exception as e:
+                                st.error(f"Error processing dates: {str(e)}")
                                 st.stop()
                             
                             # Validate transaction types
@@ -612,8 +615,8 @@ date,type,description,amount
                                 try:
                                     transaction = {
                                         'date': row['date'],
-                                        'type': row['type'],
-                                        'description': row['description'],
+                                        'type': row['type'].strip().lower(),  # Normalize type values
+                                        'description': str(row['description']),
                                         'amount': float(row['amount'])
                                     }
                                     transactions_to_import.append(transaction)
@@ -622,17 +625,29 @@ date,type,description,amount
                                     st.stop()
                             
                             # If all validations pass, import the transactions
-                            for transaction in transactions_to_import:
-                                transaction_manager.add_transaction(transaction)
-                                success_count += 1
+                            with db.conn:  # Use transaction context
+                                for transaction in transactions_to_import:
+                                    transaction_manager.add_transaction(transaction)
+                                    success_count += 1
+                                db.conn.commit()  # Commit all transactions at once
                             
                             st.success(f"Successfully imported {success_count} transactions!")
                             time.sleep(0.5)  # Brief pause to show success message
                             st.rerun()
                             
                         except Exception as e:
+                            if hasattr(db.conn, 'rollback'):
+                                db.conn.rollback()  # Rollback on error
                             st.error(f"Error during import: {str(e)}")
                             st.stop()
+                        
+                        finally:
+                            # Ensure connection is in a good state
+                            if hasattr(db.conn, 'rollback'):
+                                try:
+                                    db.conn.rollback()
+                                except:
+                                    pass
                         
         except Exception as e:
             st.error(f"Error reading file: {str(e)}")
