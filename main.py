@@ -530,20 +530,115 @@ if input_method == "Text Input":
             except Exception as e:
                 st.error(f"Error processing input: {str(e)}")
 
-# Receipt upload section
+# Receipt or bulk upload section
 else:
-    uploaded_file = st.file_uploader("Choose a receipt image", type=['png', 'jpg', 'jpeg'])
-
-    if uploaded_file is not None:
-        if st.button("Process Receipt"):
-            with st.spinner("Processing receipt..."):
-                try:
-                    image_bytes = uploaded_file.getvalue()
-                    transaction_data = gpt_processor.process_receipt_image(image_bytes)
-                    transaction_manager.add_transaction(transaction_data)
-                    st.success("Receipt processed successfully!")
-                except Exception as e:
-                    st.error(f"Error processing receipt: {str(e)}")
+    upload_type = st.radio(
+        "Choose upload type:",
+        ["Receipt Image", "Bulk Import (CSV/Excel)"]
+    )
+    
+    if upload_type == "Receipt Image":
+        uploaded_file = st.file_uploader("Choose a receipt image", type=['png', 'jpg', 'jpeg'])
+        
+        if uploaded_file is not None:
+            if st.button("Process Receipt"):
+                with st.spinner("Processing receipt..."):
+                    try:
+                        image_bytes = uploaded_file.getvalue()
+                        transaction_data = gpt_processor.process_receipt_image(image_bytes)
+                        transaction_manager.add_transaction(transaction_data)
+                        st.success("Receipt processed successfully!")
+                    except Exception as e:
+                        st.error(f"Error processing receipt: {str(e)}")
+    else:
+        uploaded_file = st.file_uploader("Upload transaction history", type=['csv', 'xlsx'])
+        
+        if uploaded_file is not None:
+            try:
+                # Read the file
+                if uploaded_file.name.endswith('.csv'):
+                    df = pd.read_csv(uploaded_file)
+                else:
+                    df = pd.read_excel(uploaded_file)
+                
+                # Display preview of the data
+                st.subheader("Preview of uploaded data")
+                st.dataframe(df.head())
+                
+                # Column mapping section
+                st.subheader("Column Mapping")
+                st.info("Select which columns from your file match our transaction fields")
+                
+                cols = df.columns.tolist()
+                date_col = st.selectbox("Date column", [""] + cols, 
+                    index=next((i + 1 for i, c in enumerate(cols) 
+                        if any(x in c.lower() for x in ['date', 'time', 'day'])), 0))
+                
+                type_col = st.selectbox("Transaction type column", [""] + cols,
+                    index=next((i + 1 for i, c in enumerate(cols)
+                        if any(x in c.lower() for x in ['type', 'category', 'transaction'])), 0))
+                
+                desc_col = st.selectbox("Description column", [""] + cols,
+                    index=next((i + 1 for i, c in enumerate(cols)
+                        if any(x in c.lower() for x in ['desc', 'details', 'narration'])), 0))
+                
+                amount_col = st.selectbox("Amount column", [""] + cols,
+                    index=next((i + 1 for i, c in enumerate(cols)
+                        if any(x in c.lower() for x in ['amount', 'sum', 'value'])), 0))
+                
+                if st.button("Import Transactions"):
+                    if not all([date_col, type_col, desc_col, amount_col]):
+                        st.error("Please map all required columns")
+                    else:
+                        with st.spinner("Importing transactions..."):
+                            # Process each row
+                            success_count = 0
+                            error_count = 0
+                            
+                            for _, row in df.iterrows():
+                                try:
+                                    # Convert date
+                                    date_str = str(row[date_col])
+                                    try:
+                                        date = pd.to_datetime(date_str).strftime('%Y-%m-%d')
+                                    except:
+                                        continue
+                                    
+                                    # Clean amount
+                                    amount_str = str(row[amount_col])
+                                    amount = float(''.join(c for c in amount_str if c.isdigit() or c in '.-'))
+                                    
+                                    # Determine transaction type
+                                    type_value = str(row[type_col]).lower()
+                                    if 'income' in type_value or 'credit' in type_value:
+                                        trans_type = 'income'
+                                    elif 'subscription' in type_value:
+                                        trans_type = 'subscription'
+                                    else:
+                                        trans_type = 'expense'
+                                    
+                                    # Add transaction
+                                    transaction_manager.add_transaction({
+                                        'date': date,
+                                        'type': trans_type,
+                                        'description': str(row[desc_col]),
+                                        'amount': abs(amount)
+                                    })
+                                    success_count += 1
+                                except Exception as e:
+                                    error_count += 1
+                                    continue
+                            
+                            if success_count > 0:
+                                st.success(f"Successfully imported {success_count} transactions!")
+                            if error_count > 0:
+                                st.warning(f"Skipped {error_count} invalid entries")
+                            
+                            if success_count > 0:
+                                st.rerun()  # Refresh to show new transactions
+                            
+            except Exception as e:
+                st.error(f"Error reading file: {str(e)}")
 
 # Quick Filters
 with st.expander("Quick Filters", expanded=False):
