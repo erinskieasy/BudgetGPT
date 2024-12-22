@@ -67,9 +67,14 @@ def init_components():
     db = Database()
     gpt = GPTProcessor()
     transaction_manager = TransactionManager(db)
-    if st.session_state.get('user'):
-        transaction_manager.set_user_id(st.session_state['user']['id'])
     return transaction_manager, gpt, db
+
+# Initialize components
+transaction_manager, gpt_processor, db = init_components()
+
+# Set user ID for transaction manager if user is logged in
+if st.session_state.get('user'):
+    transaction_manager.set_user_id(st.session_state['user']['id'])
 
 # Authentication UI
 if not st.session_state.get('user'):
