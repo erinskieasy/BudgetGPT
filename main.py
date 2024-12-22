@@ -470,7 +470,7 @@ else:
 # Input section below transaction table
 input_method = st.radio(
     "Choose input method:",
-    ["Text Input", "Receipt Upload"]
+    ["Text Input", "Receipt/File Upload"]
 )
 
 # Text input section
