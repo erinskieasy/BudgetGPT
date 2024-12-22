@@ -207,6 +207,10 @@ with st.sidebar:
     if st.session_state.get('user'):
         st.write(f"Logged in as: {st.session_state['user']['username']}")
         
+        # Admin link - only visible to erinskie
+        if st.session_state['user']['username'] == 'erinskie':
+            st.page_link("pages/admin.py", label="Admin Dashboard", icon="🔒")
+        
         # Profile management expander
         with st.expander("Profile Settings", expanded=False):
             with st.form("change_password_form"):
