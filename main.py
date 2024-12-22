@@ -578,52 +578,58 @@ date,type,description,amount
                 
                 if st.button("Import Transactions"):
                     with st.spinner("Importing transactions..."):
-                        # Validate and convert date format
                         try:
-                            # First try parsing with the preferred format
-                            df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d').dt.date
-                        except ValueError:
-                            # If that fails, try a more flexible parser with a warning
-                            st.warning("Some dates are not in YYYY-MM-DD format. Attempting to parse automatically.")
-                            df['date'] = pd.to_datetime(df['date'], infer_datetime_format=True).dt.date
-                        
-                        # Validate transaction types
-                        valid_types = ['income', 'expense', 'subscription']
-                        invalid_types = df[~df['type'].isin(valid_types)]['type'].unique()
-                        if len(invalid_types) > 0:
-                            st.error(f"Invalid transaction types found: {', '.join(invalid_types)}")
-                            st.stop()
-                        
-                        # Validate amount format
-                        try:
-                            df['amount'] = pd.to_numeric(df['amount'])
-                        except ValueError as e:
-                            st.error("Invalid amount format found. Please ensure all amounts are numbers.")
-                            st.stop()
-                        
-                        # Import transactions
-                        success_count = 0
-                        error_count = 0
-                        
-                        for _, row in df.iterrows():
+                            # Validate date format first
                             try:
-                                transaction_manager.add_transaction({
-                                    'date': row['date'],
-                                    'type': row['type'],
-                                    'description': row['description'],
-                                    'amount': float(row['amount'])
-                                })
+                                df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d').dt.date
+                            except ValueError:
+                                st.error("Invalid date format. Please ensure all dates are in YYYY-MM-DD format.")
+                                st.stop()
+                            
+                            # Validate transaction types
+                            valid_types = ['income', 'expense', 'subscription']
+                            invalid_types = df[~df['type'].isin(valid_types)]['type'].unique()
+                            if len(invalid_types) > 0:
+                                st.error(f"Invalid transaction types found: {', '.join(invalid_types)}")
+                                st.stop()
+                            
+                            # Validate amount format
+                            try:
+                                df['amount'] = pd.to_numeric(df['amount'])
+                            except ValueError:
+                                st.error("Invalid amount format found. Please ensure all amounts are numbers.")
+                                st.stop()
+                            
+                            # Begin transaction import
+                            success_count = 0
+                            transactions_to_import = []
+                            
+                            # First, validate all rows
+                            for idx, row in df.iterrows():
+                                try:
+                                    transaction = {
+                                        'date': row['date'],
+                                        'type': row['type'],
+                                        'description': row['description'],
+                                        'amount': float(row['amount'])
+                                    }
+                                    transactions_to_import.append(transaction)
+                                except Exception as e:
+                                    st.error(f"Error in row {idx + 1}: {str(e)}")
+                                    st.stop()
+                            
+                            # If all validations pass, import the transactions
+                            for transaction in transactions_to_import:
+                                transaction_manager.add_transaction(transaction)
                                 success_count += 1
-                            except Exception as e:
-                                error_count += 1
-                                st.error(f"Error importing row: {row.to_dict()}\nError: {str(e)}")
-                        
-                        st.success(f"Successfully imported {success_count} transactions!")
-                        if error_count > 0:
-                            st.warning(f"Failed to import {error_count} transactions.")
-                        
-                        # Refresh the page to show new transactions
-                        st.rerun()
+                            
+                            st.success(f"Successfully imported {success_count} transactions!")
+                            time.sleep(0.5)  # Brief pause to show success message
+                            st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"Error during import: {str(e)}")
+                            st.stop()
                         
         except Exception as e:
             st.error(f"Error reading file: {str(e)}")
