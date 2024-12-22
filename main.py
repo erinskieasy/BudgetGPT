@@ -134,11 +134,12 @@ def reset_filter_form():
 def handle_saved_filter_change():
     """Handle when a saved filter is selected"""
     # Check both personal and shared filter dropdowns
-    if (st.session_state.get('saved_filter') == "None" or 
+    if (st.session_state.get('saved_filter') == "None" and 
         st.session_state.get('selected_shared_filter') == "None"):
         # Reset Quick Filters when None is selected in either dropdown
         st.session_state.filter_column = "None"
         st.session_state.filter_text = ""
+        st.session_state.viewing_owner_id = None
         return "None", ""
     
     # Handle personal filters
@@ -149,6 +150,7 @@ def handle_saved_filter_change():
             if st.session_state.saved_filter in filter_options:
                 selected_idx = filter_options.index(st.session_state.saved_filter)
                 filter_data = saved_filters[selected_idx]
+                st.session_state.viewing_owner_id = None
                 return filter_data['filter_column'], filter_data['filter_text']
                 
     # Handle shared filters
@@ -163,6 +165,10 @@ def handle_saved_filter_change():
             if selected in filter_options:
                 selected_idx = filter_options.index(selected)
                 filter_data = shared_filters[selected_idx]
+                # Get the owner's user ID when using a shared filter
+                owner_id = next((p['id'] for p in db.get_partners(st.session_state['user']['id']) 
+                               if p['username'] == filter_data['shared_by']), None)
+                st.session_state.viewing_owner_id = owner_id
                 return filter_data['filter_column'], filter_data['filter_text']
     
     return "None", ""
@@ -403,7 +409,18 @@ stats = {
 # Get filtered transactions for display
 filter_column = st.session_state.get('filter_column', 'None')
 filter_text = st.session_state.get('filter_text', '')
-df = transaction_manager.get_filtered_transactions_df(filter_column, filter_text)
+owner_id = st.session_state.get('viewing_owner_id')
+
+# Initialize session state for viewing_owner_id if not present
+if 'viewing_owner_id' not in st.session_state:
+    st.session_state.viewing_owner_id = None
+
+# Get transactions based on whether we're viewing shared data or not
+df = transaction_manager.get_filtered_transactions_df(
+    filter_column, 
+    filter_text,
+    owner_id=owner_id
+)
 
 # Transaction history table and export options
 st.subheader("Transaction History")

@@ -36,12 +36,21 @@ class TransactionManager:
         df = pd.DataFrame(transactions)
         df['date'] = pd.to_datetime(df['date']).dt.date
         return df
-    def get_filtered_transactions_df(self, filter_column=None, filter_text=None):
+    def get_filtered_transactions_df(self, filter_column=None, filter_text=None, owner_id=None):
         """Get transactions with optional filtering"""
         if not filter_column or filter_column == "None" or not filter_text:
-            return self.get_transactions_df()
+            if owner_id:
+                # If owner_id is provided but no filters, get all transactions for that owner
+                transactions = self.db.get_transactions(user_id=owner_id)
+            else:
+                # Otherwise get current user's transactions
+                return self.get_transactions_df()
+        else:
+            # Get filtered transactions for either owner or current user
+            transactions = self.db.filter_transactions(filter_column, filter_text, 
+                                                     user_id=self.user_id if not owner_id else None,
+                                                     owner_id=owner_id)
         
-        transactions = self.db.filter_transactions(filter_column, filter_text, user_id=self.user_id)
         if not transactions:
             return pd.DataFrame(columns=['date', 'type', 'description', 'amount'])
         

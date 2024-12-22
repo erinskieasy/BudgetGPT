@@ -102,7 +102,7 @@ class Database:
                 if attempt == max_retries - 1:
                     raise Exception("Failed to add transaction") from e
                 self.connect()
-    def filter_transactions(self, column, value, user_id=None):
+    def filter_transactions(self, column, value, user_id=None, owner_id=None):
         """Get filtered transactions with retry logic"""
         max_retries = 3
         for attempt in range(max_retries):
@@ -116,8 +116,11 @@ class Database:
                     """
                     params = []
                     
-                    # Add user_id filter if provided
-                    if user_id is not None:
+                    # Use owner_id if provided, otherwise use user_id
+                    if owner_id is not None:
+                        query += " AND user_id = %s"
+                        params.append(owner_id)
+                    elif user_id is not None:
                         query += " AND user_id = %s"
                         params.append(user_id)
                     
