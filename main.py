@@ -547,6 +547,7 @@ elif input_method == "Receipt Upload":
 else:  # Bulk Upload
     st.write("Upload your transaction history file (CSV or Excel)")
     st.write("Required columns: date, type, description, amount")
+    st.write("Date format should be YYYY-MM-DD (e.g., 2024-01-01)")
     st.write("Example format:")
     st.code("""
 date,type,description,amount
@@ -578,13 +579,26 @@ date,type,description,amount
                 if st.button("Import Transactions"):
                     with st.spinner("Importing transactions..."):
                         # Validate and convert date format
-                        df['date'] = pd.to_datetime(df['date']).dt.date
+                        try:
+                            # First try parsing with the preferred format
+                            df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d').dt.date
+                        except ValueError:
+                            # If that fails, try a more flexible parser with a warning
+                            st.warning("Some dates are not in YYYY-MM-DD format. Attempting to parse automatically.")
+                            df['date'] = pd.to_datetime(df['date'], infer_datetime_format=True).dt.date
                         
                         # Validate transaction types
                         valid_types = ['income', 'expense', 'subscription']
                         invalid_types = df[~df['type'].isin(valid_types)]['type'].unique()
                         if len(invalid_types) > 0:
                             st.error(f"Invalid transaction types found: {', '.join(invalid_types)}")
+                            st.stop()
+                        
+                        # Validate amount format
+                        try:
+                            df['amount'] = pd.to_numeric(df['amount'])
+                        except ValueError as e:
+                            st.error("Invalid amount format found. Please ensure all amounts are numbers.")
                             st.stop()
                         
                         # Import transactions
