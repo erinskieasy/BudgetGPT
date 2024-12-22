@@ -470,7 +470,7 @@ else:
 # Input section below transaction table
 input_method = st.radio(
     "Choose input method:",
-    ["Text Input", "Receipt Upload"]
+    ["Text Input", "Receipt Upload", "Bulk Upload"]
 )
 
 # Text input section
@@ -531,7 +531,7 @@ if input_method == "Text Input":
                 st.error(f"Error processing input: {str(e)}")
 
 # Receipt upload section
-else:
+elif input_method == "Receipt Upload":
     uploaded_file = st.file_uploader("Choose a receipt image", type=['png', 'jpg', 'jpeg'])
 
     if uploaded_file is not None:
@@ -544,6 +544,76 @@ else:
                     st.success("Receipt processed successfully!")
                 except Exception as e:
                     st.error(f"Error processing receipt: {str(e)}")
+else:  # Bulk Upload
+    st.write("Upload your transaction history file (CSV or Excel)")
+    st.write("Required columns: date, type, description, amount")
+    st.write("Example format:")
+    st.code("""
+date,type,description,amount
+2024-01-01,income,Salary,5000.00
+2024-01-02,expense,Groceries,150.25
+2024-01-03,subscription,Netflix,14.99
+    """)
+    
+    uploaded_file = st.file_uploader("Choose a file", type=['csv', 'xlsx'])
+    
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
+            
+            # Validate required columns
+            required_columns = ['date', 'type', 'description', 'amount']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                st.error(f"Missing required columns: {', '.join(missing_columns)}")
+            else:
+                # Preview the data
+                st.write("Preview of the data to be imported:")
+                st.dataframe(df.head())
+                
+                if st.button("Import Transactions"):
+                    with st.spinner("Importing transactions..."):
+                        # Validate and convert date format
+                        df['date'] = pd.to_datetime(df['date']).dt.date
+                        
+                        # Validate transaction types
+                        valid_types = ['income', 'expense', 'subscription']
+                        invalid_types = df[~df['type'].isin(valid_types)]['type'].unique()
+                        if len(invalid_types) > 0:
+                            st.error(f"Invalid transaction types found: {', '.join(invalid_types)}")
+                            st.stop()
+                        
+                        # Import transactions
+                        success_count = 0
+                        error_count = 0
+                        
+                        for _, row in df.iterrows():
+                            try:
+                                transaction_manager.add_transaction({
+                                    'date': row['date'],
+                                    'type': row['type'],
+                                    'description': row['description'],
+                                    'amount': float(row['amount'])
+                                })
+                                success_count += 1
+                            except Exception as e:
+                                error_count += 1
+                                st.error(f"Error importing row: {row.to_dict()}\nError: {str(e)}")
+                        
+                        st.success(f"Successfully imported {success_count} transactions!")
+                        if error_count > 0:
+                            st.warning(f"Failed to import {error_count} transactions.")
+                        
+                        # Refresh the page to show new transactions
+                        st.rerun()
+                        
+        except Exception as e:
+            st.error(f"Error reading file: {str(e)}")
+
 
 # Quick Filters
 with st.expander("Quick Filters", expanded=False):
