@@ -330,10 +330,13 @@ with st.sidebar:
                     transaction_manager.restore_user_id()
                     del st.session_state['viewing_partner_id']
                     # Reset all filter forms
-                    st.session_state.filter_column = "None"
-                    st.session_state.filter_text = ""
-                    st.session_state.filter_name = ""
-                    st.session_state.saved_filter = "None"
+                    # Reset filter states
+                    if 'filter_column' in st.session_state:
+                        st.session_state.filter_column = "None"
+                    if 'filter_text' in st.session_state:
+                        st.session_state.filter_text = ""
+                    if 'filter_name' in st.session_state:
+                        st.session_state.filter_name = ""
                     st.rerun()
         else:
             st.info("No filters have been shared with you")
